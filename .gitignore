@@ -1,5 +1,7 @@
 node_modules/
 client/dist/
 catchup.db
+catchup.db-shm
+catchup.db-wal
 .env
 *.log
