@@ -56,7 +56,7 @@ export default function Home() {
         const me = await meRes.json();
         setIsAvailable(me.isAvailable);
         setAvailableSince(me.availableSince);
-        setAvailableUntil(me.availableUntil);
+        setAvailableUntil(me.availableUntil || null);
       }
       if (availRes.ok) {
         setFriends(await availRes.json());
@@ -90,9 +90,12 @@ export default function Home() {
           if (existing) {
             return prev.map(f => f.id === data.userId ? {
               ...f,
-              ...data,
+              displayName: data.displayName || f.displayName,
+              avatarColor: data.avatarColor || f.avatarColor,
+              phone: data.phone || f.phone,
+              whatsapp: data.whatsapp || f.whatsapp,
               availableSince: data.availableSince,
-              availableUntil: data.availableUntil
+              availableUntil: data.availableUntil || null
             } : f);
           }
           return [...prev, {
@@ -102,7 +105,7 @@ export default function Home() {
             phone: data.phone,
             whatsapp: data.whatsapp,
             availableSince: data.availableSince,
-            availableUntil: data.availableUntil,
+            availableUntil: data.availableUntil || null,
             circles: []
           }];
         });
@@ -115,7 +118,7 @@ export default function Home() {
     socket.on('availability:updated', (data) => {
       setIsAvailable(data.isAvailable);
       setAvailableSince(data.availableSince);
-      setAvailableUntil(data.availableUntil);
+      setAvailableUntil(data.availableUntil || null);
     });
 
     return () => {
@@ -126,37 +129,19 @@ export default function Home() {
 
   function handleAvailabilityCardClick() {
     if (isAvailable) {
-      // Turn off availability immediately
-      turnOffAvailability();
+      // Turn off availability
+      setAvailableViaApi(false, null);
     } else {
       // Show duration picker
       setShowDurationPicker(true);
     }
   }
 
-  async function turnOffAvailability() {
-    try {
-      const res = await apiFetch('/availability/set', {
-        method: 'POST',
-        body: JSON.stringify({ isAvailable: false })
-      });
-      if (res.ok) {
-        const data = await res.json();
-        setIsAvailable(data.isAvailable);
-        setAvailableSince(data.availableSince);
-        setAvailableUntil(data.availableUntil);
-      }
-    } catch (err) {
-      console.error('Failed to update availability:', err);
-    }
-    if (socket) socket.emit('availability:set', { isAvailable: false });
-  }
-
-  async function setAvailableWithDuration(duration) {
+  async function setAvailableViaApi(available, duration) {
     setShowDurationPicker(false);
     try {
-      const body = { isAvailable: true };
-      if (duration) body.duration = duration;
+      const body = { isAvailable: available };
+      if (available && duration) body.duration = duration;
       const res = await apiFetch('/availability/set', {
         method: 'POST',
         body: JSON.stringify(body)
@@ -165,12 +150,15 @@ export default function Home() {
         const data = await res.json();
         setIsAvailable(data.isAvailable);
         setAvailableSince(data.availableSince);
-        setAvailableUntil(data.availableUntil);
+        setAvailableUntil(data.availableUntil || null);
       }
     } catch (err) {
       console.error('Failed to set availability:', err);
     }
-    if (socket) socket.emit('availability:set', { isAvailable: true, duration });
+    // Broadcast to friends via socket
+    if (socket) {
+      socket.emit('availability:set', { isAvailable: available, duration: available ? duration : null });
+    }
   }
 
   const filterNames = ['All', ...circles.map(c => c.name)];
@@ -210,6 +198,9 @@ export default function Home() {
         </div>
         <h3>{isAvailable ? "You're Available" : "I'm Available"}</h3>
         <p>{getAvailabilitySubtext()}</p>
+        {isAvailable && (
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Tap to turn off</p>
+        )}
       </div>
 
       {/* Filter chips */}
@@ -282,7 +273,7 @@ export default function Home() {
                 <button
                   key={opt.label}
                   className="call-option"
-                  onClick={() => setAvailableWithDuration(opt.value)}
+                  onClick={() => setAvailableViaApi(true, opt.value)}
                 >
                   <div className="call-option-icon" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--accent-green)' }}>
                     <Clock size={20} />
