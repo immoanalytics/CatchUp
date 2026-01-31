@@ -273,23 +273,19 @@ export default function Home() {
                 <button
                   key={opt.label}
                   className="call-option"
+                  style={{ justifyContent: 'space-between' }}
                   onClick={() => setAvailableViaApi(true, opt.value)}
                 >
-                  <div className="call-option-icon" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--accent-green)' }}>
-                    <Clock size={20} />
-                  </div>
-                  <div>
+                  <div style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
+                    <div className="call-option-icon" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--accent-green)' }}>
+                      <Clock size={20} />
+                    </div>
                     <div style={{ fontWeight: 500 }}>{opt.label}</div>
-                    {opt.value && (
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        Until {new Date(Date.now() + opt.value * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
-                      </div>
-                    )}
-                    {!opt.value && (
-                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
-                        Stay available until you turn it off
-                      </div>
-                    )}
+                  </div>
+                  <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'right' }}>
+                    {opt.value
+                      ? `Until ${new Date(Date.now() + opt.value * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                      : 'Manual off'}
                   </div>
                 </button>
               ))}
