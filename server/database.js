@@ -89,6 +89,12 @@ function initializeDatabase() {
     );
   `);
 
+  // Migrations: add columns that may be missing on older databases
+  const userColumns = db.prepare("PRAGMA table_info(users)").all().map(c => c.name);
+  if (!userColumns.includes('available_until')) {
+    db.exec("ALTER TABLE users ADD COLUMN available_until TEXT");
+  }
+
   return db;
 }
 
