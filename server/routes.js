@@ -89,6 +89,7 @@ router.get('/me', authenticateToken, (req, res) => {
     avatarColor: user.avatar_color,
     isAvailable: !!user.is_available,
     availableSince: user.available_since,
+    availableUntil: user.available_until,
     schedules
   });
 });
@@ -117,26 +118,37 @@ router.put('/me', authenticateToken, (req, res) => {
 // ============ AVAILABILITY ============
 
 router.post('/availability/toggle', authenticateToken, (req, res) => {
+  const { duration } = req.body; // duration in minutes (optional)
   const db = getDb();
   const user = db.prepare('SELECT is_available FROM users WHERE id = ?').get(req.userId);
   const newStatus = user.is_available ? 0 : 1;
   const now = newStatus ? new Date().toISOString() : null;
 
-  db.prepare('UPDATE users SET is_available = ?, available_since = ? WHERE id = ?')
-    .run(newStatus, now, req.userId);
+  let availableUntil = null;
+  if (newStatus && duration) {
+    availableUntil = new Date(Date.now() + duration * 60000).toISOString();
+  }
 
-  res.json({ isAvailable: !!newStatus, availableSince: now });
+  db.prepare('UPDATE users SET is_available = ?, available_since = ?, available_until = ? WHERE id = ?')
+    .run(newStatus, now, availableUntil, req.userId);
+
+  res.json({ isAvailable: !!newStatus, availableSince: now, availableUntil });
 });
 
 router.post('/availability/set', authenticateToken, (req, res) => {
-  const { isAvailable } = req.body;
+  const { isAvailable, duration } = req.body; // duration in minutes (optional)
   const db = getDb();
   const now = isAvailable ? new Date().toISOString() : null;
 
-  db.prepare('UPDATE users SET is_available = ?, available_since = ? WHERE id = ?')
-    .run(isAvailable ? 1 : 0, now, req.userId);
+  let availableUntil = null;
+  if (isAvailable && duration) {
+    availableUntil = new Date(Date.now() + duration * 60000).toISOString();
+  }
 
-  res.json({ isAvailable: !!isAvailable, availableSince: now });
+  db.prepare('UPDATE users SET is_available = ?, available_since = ?, available_until = ? WHERE id = ?')
+    .run(isAvailable ? 1 : 0, now, availableUntil, req.userId);
+
+  res.json({ isAvailable: !!isAvailable, availableSince: now, availableUntil });
 });
 
 router.get('/available', authenticateToken, (req, res) => {
@@ -145,7 +157,7 @@ router.get('/available', authenticateToken, (req, res) => {
   // Get all friends who are available
   const availableFriends = db.prepare(`
     SELECT u.id, u.display_name, u.phone, u.whatsapp, u.avatar_color,
-           u.available_since, u.is_available
+           u.available_since, u.available_until, u.is_available
     FROM users u
     INNER JOIN friendships f ON (f.friend_id = u.id AND f.user_id = ?)
     WHERE u.is_available = 1
@@ -168,6 +180,7 @@ router.get('/available', authenticateToken, (req, res) => {
       whatsapp: friend.whatsapp,
       avatarColor: friend.avatar_color,
       availableSince: friend.available_since,
+      availableUntil: friend.available_until,
       circles: circles.map(c => ({ name: c.name, color: c.color }))
     };
   });

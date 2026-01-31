@@ -30,6 +30,7 @@ function initializeDatabase() {
       avatar_color TEXT DEFAULT '#6C63FF',
       is_available INTEGER DEFAULT 0,
       available_since TEXT,
+      available_until TEXT,
       created_at TEXT DEFAULT (datetime('now'))
     );
 

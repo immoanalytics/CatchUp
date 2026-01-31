@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Phone, Plus, Check } from 'lucide-react';
+import { Phone, Plus, Check, Clock, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import CallSheet from '../components/CallSheet';
@@ -14,15 +14,35 @@ function getTimeSince(isoString) {
   return 'just now';
 }
 
+function getTimeRemaining(isoString) {
+  if (!isoString) return null;
+  const diff = new Date(isoString).getTime() - Date.now();
+  if (diff <= 0) return 'expiring...';
+  const mins = Math.floor(diff / 60000);
+  const hours = Math.floor(mins / 60);
+  if (hours > 0) return `${hours}h ${mins % 60}m left`;
+  return `${mins} min${mins !== 1 ? 's' : ''} left`;
+}
+
+const DURATION_OPTIONS = [
+  { label: '15 min', value: 15 },
+  { label: '30 min', value: 30 },
+  { label: '1 hour', value: 60 },
+  { label: '2 hours', value: 120 },
+  { label: 'No limit', value: null },
+];
+
 export default function Home() {
   const { user, apiFetch } = useAuth();
   const socket = useSocket();
   const [isAvailable, setIsAvailable] = useState(false);
   const [availableSince, setAvailableSince] = useState(null);
+  const [availableUntil, setAvailableUntil] = useState(null);
   const [friends, setFriends] = useState([]);
   const [filter, setFilter] = useState('All');
   const [circles, setCircles] = useState([]);
   const [callContact, setCallContact] = useState(null);
+  const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [, setTick] = useState(0);
 
   const fetchData = useCallback(async () => {
@@ -36,6 +56,7 @@ export default function Home() {
         const me = await meRes.json();
         setIsAvailable(me.isAvailable);
         setAvailableSince(me.availableSince);
+        setAvailableUntil(me.availableUntil);
       }
       if (availRes.ok) {
         setFriends(await availRes.json());
@@ -52,9 +73,9 @@ export default function Home() {
     fetchData();
   }, [fetchData]);
 
-  // Update timer every minute
+  // Update timer every 30 seconds
   useEffect(() => {
-    const interval = setInterval(() => setTick(t => t + 1), 60000);
+    const interval = setInterval(() => setTick(t => t + 1), 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -67,7 +88,12 @@ export default function Home() {
         setFriends(prev => {
           const existing = prev.find(f => f.id === data.userId);
           if (existing) {
-            return prev.map(f => f.id === data.userId ? { ...f, ...data, availableSince: data.availableSince } : f);
+            return prev.map(f => f.id === data.userId ? {
+              ...f,
+              ...data,
+              availableSince: data.availableSince,
+              availableUntil: data.availableUntil
+            } : f);
           }
           return [...prev, {
             id: data.userId,
@@ -76,6 +102,7 @@ export default function Home() {
             phone: data.phone,
             whatsapp: data.whatsapp,
             availableSince: data.availableSince,
+            availableUntil: data.availableUntil,
             circles: []
           }];
         });
@@ -88,6 +115,7 @@ export default function Home() {
     socket.on('availability:updated', (data) => {
       setIsAvailable(data.isAvailable);
       setAvailableSince(data.availableSince);
+      setAvailableUntil(data.availableUntil);
     });
 
     return () => {
@@ -96,20 +124,53 @@ export default function Home() {
     };
   }, [socket]);
 
-  async function toggleAvailability() {
+  function handleAvailabilityCardClick() {
+    if (isAvailable) {
+      // Turn off availability immediately
+      turnOffAvailability();
+    } else {
+      // Show duration picker
+      setShowDurationPicker(true);
+    }
+  }
+
+  async function turnOffAvailability() {
     try {
-      const res = await apiFetch('/availability/toggle', { method: 'POST' });
+      const res = await apiFetch('/availability/set', {
+        method: 'POST',
+        body: JSON.stringify({ isAvailable: false })
+      });
       if (res.ok) {
         const data = await res.json();
         setIsAvailable(data.isAvailable);
         setAvailableSince(data.availableSince);
+        setAvailableUntil(data.availableUntil);
       }
     } catch (err) {
-      console.error('Failed to toggle availability:', err);
+      console.error('Failed to update availability:', err);
     }
+    if (socket) socket.emit('availability:set', { isAvailable: false });
+  }
 
-    // Also emit via socket for real-time broadcast
-    if (socket) socket.emit('availability:toggle');
+  async function setAvailableWithDuration(duration) {
+    setShowDurationPicker(false);
+    try {
+      const body = { isAvailable: true };
+      if (duration) body.duration = duration;
+      const res = await apiFetch('/availability/set', {
+        method: 'POST',
+        body: JSON.stringify(body)
+      });
+      if (res.ok) {
+        const data = await res.json();
+        setIsAvailable(data.isAvailable);
+        setAvailableSince(data.availableSince);
+        setAvailableUntil(data.availableUntil);
+      }
+    } catch (err) {
+      console.error('Failed to set availability:', err);
+    }
+    if (socket) socket.emit('availability:set', { isAvailable: true, duration });
   }
 
   const filterNames = ['All', ...circles.map(c => c.name)];
@@ -122,6 +183,19 @@ export default function Home() {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
 
+  function getAvailabilitySubtext() {
+    if (!isAvailable) return 'Tap to let friends know';
+    const remaining = getTimeRemaining(availableUntil);
+    if (remaining) return remaining;
+    return `Available for ${getTimeSince(availableSince)}`;
+  }
+
+  function getFriendStatus(friend) {
+    const remaining = getTimeRemaining(friend.availableUntil);
+    if (remaining) return remaining;
+    return `Free for ${getTimeSince(friend.availableSince)}`;
+  }
+
   return (
     <div className="page-content">
       <h1 className="page-title">CatchUp</h1>
@@ -129,17 +203,13 @@ export default function Home() {
       {/* Availability toggle card */}
       <div
         className={`availability-card ${isAvailable ? 'available' : ''}`}
-        onClick={toggleAvailability}
+        onClick={handleAvailabilityCardClick}
       >
         <div className="plus-icon">
           {isAvailable ? <Check size={24} color="white" /> : <Plus size={24} color="var(--text-muted)" />}
         </div>
         <h3>{isAvailable ? "You're Available" : "I'm Available"}</h3>
-        <p>
-          {isAvailable
-            ? `Available for ${getTimeSince(availableSince)}`
-            : 'Tap to let friends know'}
-        </p>
+        <p>{getAvailabilitySubtext()}</p>
       </div>
 
       {/* Filter chips */}
@@ -184,7 +254,7 @@ export default function Home() {
             )}
             <div className="contact-status">
               <span className="status-dot" />
-              Free for {getTimeSince(friend.availableSince)}
+              {getFriendStatus(friend)}
             </div>
           </div>
           <button className="call-button" onClick={() => setCallContact(friend)}>
@@ -195,6 +265,46 @@ export default function Home() {
 
       {callContact && (
         <CallSheet contact={callContact} onClose={() => setCallContact(null)} />
+      )}
+
+      {/* Duration picker modal */}
+      {showDurationPicker && (
+        <div className="modal-overlay" onClick={() => setShowDurationPicker(false)}>
+          <div className="modal-content" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 className="modal-title" style={{ marginBottom: 0 }}>How long are you free?</h2>
+              <button onClick={() => setShowDurationPicker(false)} style={{ color: 'var(--text-muted)' }}>
+                <X size={24} />
+              </button>
+            </div>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+              {DURATION_OPTIONS.map(opt => (
+                <button
+                  key={opt.label}
+                  className="call-option"
+                  onClick={() => setAvailableWithDuration(opt.value)}
+                >
+                  <div className="call-option-icon" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--accent-green)' }}>
+                    <Clock size={20} />
+                  </div>
+                  <div>
+                    <div style={{ fontWeight: 500 }}>{opt.label}</div>
+                    {opt.value && (
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                        Until {new Date(Date.now() + opt.value * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}
+                      </div>
+                    )}
+                    {!opt.value && (
+                      <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+                        Stay available until you turn it off
+                      </div>
+                    )}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        </div>
       )}
     </div>
   );
