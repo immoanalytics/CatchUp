@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Plus, Heart, Briefcase, Users, ChevronRight, X, UserPlus, Trash2 } from 'lucide-react';
+import { Plus, Heart, Briefcase, Users, ChevronRight, X, UserPlus, Trash2, BookUser } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const iconMap = {
@@ -29,6 +29,8 @@ export default function Circles() {
   const [friendUsername, setFriendUsername] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [error, setError] = useState('');
+  const [contactMatches, setContactMatches] = useState([]);
+  const [loadingContacts, setLoadingContacts] = useState(false);
 
   const fetchCircles = useCallback(async () => {
     try {
@@ -130,6 +132,36 @@ export default function Circles() {
     }
   }
 
+  async function findFromContacts() {
+    if (!('contacts' in navigator && 'ContactsManager' in window)) {
+      setError('Contact access is not supported on this browser. Try from a mobile device.');
+      return;
+    }
+    setLoadingContacts(true);
+    setError('');
+    try {
+      const contacts = await navigator.contacts.select(['tel'], { multiple: true });
+      const phones = contacts.flatMap(c => c.tel || []).map(t => t.replace(/\D/g, '')).filter(p => p.length >= 6);
+      if (phones.length === 0) {
+        setError('No phone numbers found in selected contacts.');
+        setLoadingContacts(false);
+        return;
+      }
+      const res = await apiFetch('/users/lookup', {
+        method: 'POST',
+        body: JSON.stringify({ phones })
+      });
+      if (res.ok) {
+        const matches = await res.json();
+        setContactMatches(matches);
+        if (matches.length === 0) setError('None of the selected contacts are on CatchUp yet.');
+      }
+    } catch (err) {
+      if (err.name !== 'TypeError') setError(err.message);
+    }
+    setLoadingContacts(false);
+  }
+
   async function removeMemberFromCircle(memberId) {
     if (!selectedCircle) return;
     try {
@@ -198,20 +230,34 @@ export default function Circles() {
         </div>
 
         {showAddFriend && (
-          <div className="modal-overlay" onClick={() => setShowAddFriend(false)}>
+          <div className="modal-overlay" onClick={() => { setShowAddFriend(false); setContactMatches([]); }}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
               <h2 className="modal-title">Add Friend to {selectedCircle.name}</h2>
               <div className="form-group">
                 <input
                   type="text"
-                  placeholder="Search by name or username..."
+                  placeholder="Search by name, username or phone..."
                   value={friendUsername}
                   onChange={e => searchUsers(e.target.value)}
                   autoFocus
                 />
               </div>
+              <button
+                className="btn btn-block"
+                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', marginBottom: 16, gap: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                onClick={findFromContacts}
+                disabled={loadingContacts}
+              >
+                <BookUser size={18} />
+                {loadingContacts ? 'Checking contacts...' : 'Find from Contacts'}
+              </button>
               {error && <p className="error-text">{error}</p>}
-              {searchResults.map(u => (
+              {contactMatches.length > 0 && searchResults.length === 0 && (
+                <div style={{ marginBottom: 8 }}>
+                  <span className="section-title" style={{ fontSize: 13 }}>From your contacts</span>
+                </div>
+              )}
+              {(searchResults.length > 0 ? searchResults : contactMatches).map(u => (
                 <div key={u.id} className="contact-card" style={{ cursor: 'pointer' }} onClick={() => addFriend(u)}>
                   <div className="avatar" style={{ backgroundColor: u.avatarColor }}>
                     {getInitials(u.displayName)}

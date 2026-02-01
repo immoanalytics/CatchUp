@@ -448,16 +448,45 @@ router.get('/users/search', authenticateToken, (req, res) => {
 
   const db = getDb();
   const users = db.prepare(`
-    SELECT id, username, display_name, avatar_color FROM users
-    WHERE (username LIKE ? OR display_name LIKE ?) AND id != ?
+    SELECT id, username, display_name, avatar_color, phone FROM users
+    WHERE (username LIKE ? OR display_name LIKE ? OR phone LIKE ?) AND id != ?
     LIMIT 20
-  `).all(`%${q}%`, `%${q}%`, req.userId);
+  `).all(`%${q}%`, `%${q}%`, `%${q}%`, req.userId);
 
   res.json(users.map(u => ({
     id: u.id,
     username: u.username,
     displayName: u.display_name,
-    avatarColor: u.avatar_color
+    avatarColor: u.avatar_color,
+    phone: u.phone
+  })));
+});
+
+// Look up registered users by phone numbers (for contact book matching)
+router.post('/users/lookup', authenticateToken, (req, res) => {
+  const { phones } = req.body;
+  if (!phones || !Array.isArray(phones) || phones.length === 0) return res.json([]);
+
+  const db = getDb();
+  // Normalize: strip all non-digit characters for comparison
+  const normalize = p => p.replace(/\D/g, '');
+  const allUsers = db.prepare(`
+    SELECT id, username, display_name, avatar_color, phone FROM users
+    WHERE phone IS NOT NULL AND phone != '' AND id != ?
+  `).all(req.userId);
+
+  const normalizedInput = phones.map(normalize).filter(p => p.length >= 6);
+  const matches = allUsers.filter(u => {
+    const uNorm = normalize(u.phone);
+    return normalizedInput.some(p => uNorm.endsWith(p) || p.endsWith(uNorm));
+  });
+
+  res.json(matches.map(u => ({
+    id: u.id,
+    username: u.username,
+    displayName: u.display_name,
+    avatarColor: u.avatar_color,
+    phone: u.phone
   })));
 });
 
