@@ -132,52 +132,23 @@ export default function Circles() {
     }
   }
 
-  const hasContactPicker = typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window;
-
-  async function findFromContacts() {
-    if (!hasContactPicker) {
-      // Fallback: prompt for phone number input
-      const phone = prompt('Enter a phone number to look up:');
-      if (!phone) return;
-      setLoadingContacts(true);
-      setError('');
-      try {
-        const res = await apiFetch('/users/lookup', {
-          method: 'POST',
-          body: JSON.stringify({ phones: [phone] })
-        });
-        if (res.ok) {
-          const matches = await res.json();
-          setContactMatches(matches);
-          if (matches.length === 0) setError('No CatchUp user found with that phone number.');
-        }
-      } catch (err) {
-        setError(err.message);
-      }
-      setLoadingContacts(false);
-      return;
-    }
+  async function lookupByPhone() {
+    const phone = prompt('Enter a phone number to look up:');
+    if (!phone) return;
     setLoadingContacts(true);
     setError('');
     try {
-      const contacts = await navigator.contacts.select(['tel'], { multiple: true });
-      const phones = contacts.flatMap(c => c.tel || []).map(t => t.replace(/\D/g, '')).filter(p => p.length >= 6);
-      if (phones.length === 0) {
-        setError('No phone numbers found in selected contacts.');
-        setLoadingContacts(false);
-        return;
-      }
       const res = await apiFetch('/users/lookup', {
         method: 'POST',
-        body: JSON.stringify({ phones })
+        body: JSON.stringify({ phones: [phone] })
       });
       if (res.ok) {
         const matches = await res.json();
         setContactMatches(matches);
-        if (matches.length === 0) setError('None of the selected contacts are on CatchUp yet.');
+        if (matches.length === 0) setError('No CatchUp user found with that phone number.');
       }
     } catch (err) {
-      setError(err.message || 'Could not access contacts.');
+      setError(err.message);
     }
     setLoadingContacts(false);
   }
@@ -265,11 +236,11 @@ export default function Circles() {
               <button
                 className="btn btn-block"
                 style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', marginBottom: 16, gap: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={findFromContacts}
+                onClick={lookupByPhone}
                 disabled={loadingContacts}
               >
                 <BookUser size={18} />
-                {loadingContacts ? 'Checking...' : hasContactPicker ? 'Find from Contacts' : 'Look up by Phone Number'}
+                {loadingContacts ? 'Checking...' : 'Look up by Phone Number'}
               </button>
               {error && <p className="error-text">{error}</p>}
               {contactMatches.length > 0 && searchResults.length === 0 && (
