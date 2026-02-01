@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Phone, MessageCircle, Bell, ChevronRight, Plus, Camera, LogOut } from 'lucide-react';
+import { Phone, MessageCircle, Bell, ChevronRight, Plus, Camera, LogOut, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -248,7 +248,16 @@ export default function Profile() {
       {showEditProfile && (
         <div className="modal-overlay" onClick={() => setShowEditProfile(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">Edit Profile</h2>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 className="modal-title" style={{ marginBottom: 0 }}>Edit Profile</h2>
+              <button
+                type="button"
+                onClick={() => setShowEditProfile(false)}
+                style={{ color: 'var(--text-muted)', padding: 4 }}
+              >
+                <X size={24} />
+              </button>
+            </div>
             <form onSubmit={saveProfile}>
               <div className="form-group">
                 <label className="form-label">Display Name</label>
@@ -276,7 +285,9 @@ export default function Profile() {
                   onChange={e => setEditWhatsapp(e.target.value)}
                 />
               </div>
-              <button type="submit" className="btn btn-primary btn-block">Save</button>
+              <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8, paddingTop: 14, paddingBottom: 14, fontSize: 16, fontWeight: 600 }}>
+                Save Changes
+              </button>
             </form>
           </div>
         </div>
