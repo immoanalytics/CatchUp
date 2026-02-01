@@ -3,7 +3,7 @@ const path = require('path');
 const { v4: uuidv4 } = require('uuid');
 const bcrypt = require('bcryptjs');
 
-const DB_PATH = path.join(__dirname, '..', 'catchup.db');
+const DB_PATH = process.env.DATABASE_PATH || path.join(__dirname, '..', 'catchup.db');
 
 let db;
 
