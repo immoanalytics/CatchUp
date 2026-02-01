@@ -185,9 +185,15 @@ setInterval(() => {
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {
-  app.use(express.static(path.join(__dirname, '..', 'client', 'dist')));
+  const distPath = path.join(__dirname, '..', 'client', 'dist');
+  const indexPath = path.join(distPath, 'index.html');
+  app.use(express.static(distPath));
   app.get('*', (req, res) => {
-    res.sendFile(path.join(__dirname, '..', 'client', 'dist', 'index.html'));
+    if (fs.existsSync(indexPath)) {
+      res.sendFile(indexPath);
+    } else {
+      res.status(200).send('CatchUp is running. Frontend build not found.');
+    }
   });
 }
 
