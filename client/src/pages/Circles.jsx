@@ -204,7 +204,7 @@ export default function Circles() {
               <div className="form-group">
                 <input
                   type="text"
-                  placeholder="Search by username..."
+                  placeholder="Search by name or username..."
                   value={friendUsername}
                   onChange={e => searchUsers(e.target.value)}
                   autoFocus
