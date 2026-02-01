@@ -197,9 +197,13 @@ export default function Circles() {
 
         {members.map(m => (
           <div key={m.id} className="contact-card">
-            <div className="avatar" style={{ backgroundColor: m.avatarColor || '#6C63FF' }}>
-              {getInitials(m.displayName)}
-            </div>
+            {m.photo ? (
+              <img src={m.photo} alt={m.displayName} className="avatar" style={{ objectFit: 'cover' }} />
+            ) : (
+              <div className="avatar" style={{ backgroundColor: m.avatarColor || '#6C63FF' }}>
+                {getInitials(m.displayName)}
+              </div>
+            )}
             <div className="contact-info">
               <div className="contact-name">{m.displayName}</div>
               {m.isAvailable && (

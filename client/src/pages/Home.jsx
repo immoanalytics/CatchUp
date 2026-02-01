@@ -94,7 +94,7 @@ export default function Home() {
   const [availableSince, setAvailableSince] = useState(null);
   const [availableUntil, setAvailableUntil] = useState(null);
   const [friends, setFriends] = useState([]);
-  const [filter, setFilter] = useState('All');
+  const [filter, setFilter] = useState(null);
   const [circles, setCircles] = useState([]);
   const [callContact, setCallContact] = useState(null);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
@@ -218,11 +218,15 @@ export default function Home() {
     }
   }
 
-  const filterNames = [t('all'), ...circles.map(c => c.name)];
+  // Filter out friends whose availability has expired client-side
+  const activeFriends = friends.filter(f => {
+    if (!f.availableUntil) return true;
+    return new Date(f.availableUntil).getTime() > Date.now();
+  });
 
-  const filteredFriends = filter === t('all')
-    ? friends
-    : friends.filter(f => f.circles && f.circles.some(c => c.name === filter));
+  const filteredFriends = filter === null
+    ? activeFriends
+    : activeFriends.filter(f => f.circles && f.circles.some(c => c.name === filter));
 
   function getInitials(name) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -302,13 +306,19 @@ export default function Home() {
 
       {/* Filter chips */}
       <div className="filter-bar">
-        {filterNames.map(name => (
+        <button
+          className={`filter-chip ${filter === null ? 'active' : ''}`}
+          onClick={() => setFilter(null)}
+        >
+          {t('all')}
+        </button>
+        {circles.map(c => (
           <button
-            key={name}
-            className={`filter-chip ${filter === name ? 'active' : ''}`}
-            onClick={() => setFilter(name)}
+            key={c.id}
+            className={`filter-chip ${filter === c.name ? 'active' : ''}`}
+            onClick={() => setFilter(c.name)}
           >
-            {name}
+            {c.name}
           </button>
         ))}
       </div>
