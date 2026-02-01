@@ -1,11 +1,13 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { Phone, MessageCircle, Bell, ChevronRight, Plus, Camera, LogOut, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function Profile() {
   const { user, apiFetch, logout, fetchMe } = useAuth();
+  const { t } = useLanguage();
   const [schedules, setSchedules] = useState([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
   const [showAddSchedule, setShowAddSchedule] = useState(false);
@@ -26,7 +28,6 @@ export default function Profile() {
     const file = e.target.files?.[0];
     if (!file) return;
 
-    // Resize and compress the image before uploading
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const img = new Image();
@@ -58,7 +59,6 @@ export default function Profile() {
       img.src = ev.target.result;
     };
     reader.readAsDataURL(file);
-    // Reset so the same file can be selected again
     e.target.value = '';
   }
 
@@ -162,7 +162,7 @@ export default function Profile() {
 
   return (
     <div className="page-content">
-      <h1 className="page-title">Profile</h1>
+      <h1 className="page-title">{t('profile')}</h1>
 
       {/* Avatar and name */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
@@ -204,13 +204,13 @@ export default function Profile() {
         />
         <h2 style={{ fontSize: 20, marginTop: 8 }}>{user.displayName}</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: 14, cursor: 'pointer' }} onClick={openEditProfile}>
-          Tap to edit
+          {t('tapToEdit')}
         </p>
       </div>
 
       {/* Contact Info */}
       <div className="section-header">
-        <span className="section-title">Contact Info</span>
+        <span className="section-title">{t('contactInfo')}</span>
       </div>
 
       <div className="card" style={{ padding: 0, overflow: 'hidden' }}>
@@ -222,8 +222,8 @@ export default function Profile() {
             <Phone size={18} color="var(--text-secondary)" />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500 }}>Phone Number</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{user.phone || 'Not set'}</div>
+            <div style={{ fontWeight: 500 }}>{t('phoneNumber')}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{user.phone || t('notSet')}</div>
           </div>
           <ChevronRight size={18} className="chevron" />
         </div>
@@ -236,8 +236,8 @@ export default function Profile() {
             <MessageCircle size={18} color="var(--text-secondary)" />
           </div>
           <div style={{ flex: 1 }}>
-            <div style={{ fontWeight: 500 }}>WhatsApp</div>
-            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{user.whatsapp || 'Not set'}</div>
+            <div style={{ fontWeight: 500 }}>{t('whatsapp')}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{user.whatsapp || t('notSet')}</div>
           </div>
           <ChevronRight size={18} className="chevron" />
         </div>
@@ -245,15 +245,15 @@ export default function Profile() {
 
       {/* Recurring Schedules */}
       <div className="section-header" style={{ marginTop: 24 }}>
-        <span className="section-title">Recurring Schedules</span>
+        <span className="section-title">{t('recurringSchedules')}</span>
         <button style={{ color: 'var(--accent-blue)', fontSize: 14, fontWeight: 500 }} onClick={() => setShowAddSchedule(true)}>
-          + Add
+          {t('add')}
         </button>
       </div>
 
       {schedules.length === 0 && (
         <div style={{ textAlign: 'center', padding: '20px', color: 'var(--text-muted)', fontSize: 14 }}>
-          No recurring schedules yet
+          {t('noSchedulesYet')}
         </div>
       )}
 
@@ -278,13 +278,13 @@ export default function Profile() {
 
       {schedules.length > 0 && (
         <p style={{ textAlign: 'center', fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
-          Tap to edit, long press to delete
+          {t('tapToEditLongPress')}
         </p>
       )}
 
       {/* Preferences */}
       <div className="section-header" style={{ marginTop: 24 }}>
-        <span className="section-title">Preferences</span>
+        <span className="section-title">{t('preferences')}</span>
       </div>
 
       <div className="card" style={{ display: 'flex', alignItems: 'center', gap: 14 }}>
@@ -292,8 +292,8 @@ export default function Profile() {
           <Bell size={18} color="var(--accent-orange)" />
         </div>
         <div style={{ flex: 1 }}>
-          <div style={{ fontWeight: 500 }}>Push Notifications</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>Get notified when friends are free</div>
+          <div style={{ fontWeight: 500 }}>{t('pushNotifications')}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('pushDescription')}</div>
         </div>
         <div
           className={`toggle ${pushEnabled ? 'active' : ''}`}
@@ -308,7 +308,7 @@ export default function Profile() {
         onClick={logout}
       >
         <LogOut size={16} style={{ marginRight: 8 }} />
-        Sign Out
+        {t('signOut')}
       </button>
 
       {/* Edit Profile Modal */}
@@ -316,7 +316,7 @@ export default function Profile() {
         <div className="modal-overlay" onClick={() => setShowEditProfile(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 className="modal-title" style={{ marginBottom: 0 }}>Edit Profile</h2>
+              <h2 className="modal-title" style={{ marginBottom: 0 }}>{t('editProfile')}</h2>
               <button
                 type="button"
                 onClick={() => setShowEditProfile(false)}
@@ -327,7 +327,7 @@ export default function Profile() {
             </div>
             <form onSubmit={saveProfile}>
               <div className="form-group">
-                <label className="form-label">Display Name</label>
+                <label className="form-label">{t('displayName')}</label>
                 <input
                   type="text"
                   value={editDisplayName}
@@ -335,25 +335,25 @@ export default function Profile() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Phone Number</label>
+                <label className="form-label">{t('phoneNumber')}</label>
                 <input
                   type="tel"
-                  placeholder="+1234567890"
+                  placeholder={t('phonePlaceholder')}
                   value={editPhone}
                   onChange={e => setEditPhone(e.target.value)}
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">WhatsApp Number</label>
+                <label className="form-label">{t('whatsappNumber')}</label>
                 <input
                   type="tel"
-                  placeholder="+1234567890"
+                  placeholder={t('phonePlaceholder')}
                   value={editWhatsapp}
                   onChange={e => setEditWhatsapp(e.target.value)}
                 />
               </div>
               <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8, paddingTop: 14, paddingBottom: 14, fontSize: 16, fontWeight: 600 }}>
-                Save Changes
+                {t('saveChanges')}
               </button>
             </form>
           </div>
@@ -364,10 +364,10 @@ export default function Profile() {
       {showAddSchedule && (
         <div className="modal-overlay" onClick={() => setShowAddSchedule(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">Add Schedule</h2>
+            <h2 className="modal-title">{t('addSchedule')}</h2>
             <form onSubmit={addSchedule}>
               <div className="form-group">
-                <label className="form-label">Days</label>
+                <label className="form-label">{t('days')}</label>
                 <div className="day-picker">
                   {DAY_LABELS.map(day => (
                     <button
@@ -383,7 +383,7 @@ export default function Profile() {
               </div>
               <div style={{ display: 'flex', gap: 12 }}>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">Start Time</label>
+                  <label className="form-label">{t('startTime')}</label>
                   <input
                     type="time"
                     value={scheduleStart}
@@ -391,7 +391,7 @@ export default function Profile() {
                   />
                 </div>
                 <div className="form-group" style={{ flex: 1 }}>
-                  <label className="form-label">End Time</label>
+                  <label className="form-label">{t('endTime')}</label>
                   <input
                     type="time"
                     value={scheduleEnd}
@@ -400,7 +400,7 @@ export default function Profile() {
                 </div>
               </div>
               <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8 }}>
-                Add Schedule
+                {t('addSchedule')}
               </button>
             </form>
           </div>

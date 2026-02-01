@@ -1,15 +1,17 @@
 import { useLocation, useNavigate } from 'react-router-dom';
 import { Home, Users, User } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 const tabs = [
-  { path: '/', label: 'Home', icon: Home },
-  { path: '/circles', label: 'Circles', icon: Users },
-  { path: '/profile', label: 'Profile', icon: User },
+  { path: '/', labelKey: 'home', icon: Home },
+  { path: '/circles', labelKey: 'circles', icon: Users },
+  { path: '/profile', labelKey: 'profile', icon: User },
 ];
 
 export default function BottomNav() {
   const location = useLocation();
   const navigate = useNavigate();
+  const { t } = useLanguage();
 
   return (
     <nav className="bottom-nav">
@@ -23,7 +25,7 @@ export default function BottomNav() {
             onClick={() => navigate(tab.path)}
           >
             <Icon size={22} />
-            <span>{tab.label}</span>
+            <span>{t(tab.labelKey)}</span>
           </button>
         );
       })}

@@ -1,6 +1,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import { Plus, Heart, Briefcase, Users, ChevronRight, X, UserPlus, Trash2, BookUser } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 const iconMap = {
   heart: Heart,
@@ -18,6 +19,7 @@ const colorMap = {
 
 export default function Circles() {
   const { apiFetch } = useAuth();
+  const { t } = useLanguage();
   const [circles, setCircles] = useState([]);
   const [selectedCircle, setSelectedCircle] = useState(null);
   const [members, setMembers] = useState([]);
@@ -133,7 +135,7 @@ export default function Circles() {
   }
 
   async function lookupByPhone() {
-    const phone = prompt('Enter a phone number to look up:');
+    const phone = prompt(t('enterPhoneToLookup'));
     if (!phone) return;
     setLoadingContacts(true);
     setError('');
@@ -145,7 +147,7 @@ export default function Circles() {
       if (res.ok) {
         const matches = await res.json();
         setContactMatches(matches);
-        if (matches.length === 0) setError('No CatchUp user found with that phone number.');
+        if (matches.length === 0) setError(t('noCatchUpUser'));
       }
     } catch (err) {
       setError(err.message);
@@ -180,16 +182,16 @@ export default function Circles() {
         </div>
 
         <div className="section-header">
-          <span className="section-title">Members</span>
+          <span className="section-title">{t('members')}</span>
           <button style={{ color: 'var(--accent-blue)', fontSize: 14, fontWeight: 500 }} onClick={() => setShowAddFriend(true)}>
-            + Add
+            {t('add')}
           </button>
         </div>
 
         {members.length === 0 && (
           <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-            <p>No members in this circle yet</p>
-            <p style={{ fontSize: 13, marginTop: 4 }}>Add friends to this circle to see them here</p>
+            <p>{t('noMembersYet')}</p>
+            <p style={{ fontSize: 13, marginTop: 4 }}>{t('addFriendsToCircle')}</p>
           </div>
         )}
 
@@ -203,7 +205,7 @@ export default function Circles() {
               {m.isAvailable && (
                 <div className="contact-status">
                   <span className="status-dot" />
-                  Available
+                  {t('availableNow')}
                 </div>
               )}
             </div>
@@ -216,18 +218,18 @@ export default function Circles() {
         <div style={{ marginTop: 24 }}>
           <button className="btn btn-danger btn-block" onClick={() => deleteCircle(selectedCircle.id)}>
             <Trash2 size={16} style={{ marginRight: 8 }} />
-            Delete Circle
+            {t('deleteCircle')}
           </button>
         </div>
 
         {showAddFriend && (
           <div className="modal-overlay" onClick={() => { setShowAddFriend(false); setContactMatches([]); }}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
-              <h2 className="modal-title">Add Friend to {selectedCircle.name}</h2>
+              <h2 className="modal-title">{t('addFriendTo')} {selectedCircle.name}</h2>
               <div className="form-group">
                 <input
                   type="text"
-                  placeholder="Search by name, username or phone..."
+                  placeholder={t('searchPlaceholder')}
                   value={friendUsername}
                   onChange={e => searchUsers(e.target.value)}
                   autoFocus
@@ -240,12 +242,12 @@ export default function Circles() {
                 disabled={loadingContacts}
               >
                 <BookUser size={18} />
-                {loadingContacts ? 'Checking...' : 'Look up by Phone Number'}
+                {loadingContacts ? t('checking') : t('lookUpByPhone')}
               </button>
               {error && <p className="error-text">{error}</p>}
               {contactMatches.length > 0 && searchResults.length === 0 && (
                 <div style={{ marginBottom: 8 }}>
-                  <span className="section-title" style={{ fontSize: 13 }}>From your contacts</span>
+                  <span className="section-title" style={{ fontSize: 13 }}>{t('fromYourContacts')}</span>
                 </div>
               )}
               {(searchResults.length > 0 ? searchResults : contactMatches).map(u => (
@@ -270,11 +272,11 @@ export default function Circles() {
   // Circles list view
   return (
     <div className="page-content">
-      <h1 className="page-title">Circles</h1>
+      <h1 className="page-title">{t('circles')}</h1>
 
       <div style={{ marginBottom: 20 }}>
-        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>Your Circles</h2>
-        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>Tap a circle to manage members</p>
+        <h2 style={{ fontSize: 22, fontWeight: 700, marginBottom: 4 }}>{t('yourCircles')}</h2>
+        <p style={{ color: 'var(--text-muted)', fontSize: 14 }}>{t('tapToManageMembers')}</p>
       </div>
 
       {circles.map(circle => {
@@ -286,7 +288,7 @@ export default function Circles() {
             </div>
             <div className="circle-details">
               <div className="circle-name">{circle.name}</div>
-              <div className="circle-count">{circle.memberCount} member{circle.memberCount !== 1 ? 's' : ''}</div>
+              <div className="circle-count">{circle.memberCount} {circle.memberCount !== 1 ? t('membersPlural') : t('member')}</div>
             </div>
             <ChevronRight size={20} className="chevron" />
           </div>
@@ -300,13 +302,13 @@ export default function Circles() {
       {showAddCircle && (
         <div className="modal-overlay" onClick={() => setShowAddCircle(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
-            <h2 className="modal-title">New Circle</h2>
+            <h2 className="modal-title">{t('newCircle')}</h2>
             <form onSubmit={createCircle}>
               <div className="form-group">
-                <label className="form-label">Circle Name</label>
+                <label className="form-label">{t('circleName')}</label>
                 <input
                   type="text"
-                  placeholder="e.g. Gym Buddies"
+                  placeholder={t('circleNamePlaceholder')}
                   value={newCircleName}
                   onChange={e => setNewCircleName(e.target.value)}
                   autoFocus
@@ -314,7 +316,7 @@ export default function Circles() {
                 />
               </div>
               <div className="form-group">
-                <label className="form-label">Icon</label>
+                <label className="form-label">{t('icon')}</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {Object.entries(iconMap).map(([key, Icon]) => (
                     <button
@@ -329,7 +331,7 @@ export default function Circles() {
                 </div>
               </div>
               <div className="form-group">
-                <label className="form-label">Color</label>
+                <label className="form-label">{t('color')}</label>
                 <div style={{ display: 'flex', gap: 8 }}>
                   {['#4CAF50', '#FF9800', '#E91E63', '#6C63FF', '#00BCD4'].map(color => (
                     <button
@@ -345,7 +347,7 @@ export default function Circles() {
                 </div>
               </div>
               <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8 }}>
-                Create Circle
+                {t('createCircle')}
               </button>
             </form>
           </div>

@@ -1,6 +1,8 @@
 import { Phone, MessageCircle, X } from 'lucide-react';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function CallSheet({ contact, onClose }) {
+  const { t } = useLanguage();
   if (!contact) return null;
 
   function handlePhoneCall() {
@@ -22,7 +24,7 @@ export default function CallSheet({ contact, onClose }) {
     <div className="modal-overlay" onClick={onClose}>
       <div className="modal-content" onClick={e => e.stopPropagation()}>
         <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-          <h2 className="modal-title" style={{ marginBottom: 0 }}>Call {contact.displayName}</h2>
+          <h2 className="modal-title" style={{ marginBottom: 0 }}>{t('call')} {contact.displayName}</h2>
           <button onClick={onClose} style={{ color: 'var(--text-muted)' }}>
             <X size={24} />
           </button>
@@ -35,7 +37,7 @@ export default function CallSheet({ contact, onClose }) {
                 <Phone size={20} />
               </div>
               <div>
-                <div>Phone Call</div>
+                <div>{t('phoneCall')}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{contact.phone}</div>
               </div>
             </button>
@@ -47,7 +49,7 @@ export default function CallSheet({ contact, onClose }) {
                 <MessageCircle size={20} />
               </div>
               <div>
-                <div>WhatsApp</div>
+                <div>{t('whatsapp')}</div>
                 <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{contact.whatsapp}</div>
               </div>
             </button>
@@ -55,7 +57,7 @@ export default function CallSheet({ contact, onClose }) {
 
           {!contact.phone && !contact.whatsapp && (
             <p style={{ color: 'var(--text-muted)', textAlign: 'center', padding: 20 }}>
-              No contact methods available
+              {t('noContactMethods')}
             </p>
           )}
         </div>

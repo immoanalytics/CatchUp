@@ -1,12 +1,16 @@
 import { useState } from 'react';
+import { Eye, EyeOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
+import { useLanguage } from '../context/LanguageContext';
 
 export default function Auth() {
   const { login, register } = useAuth();
+  const { t } = useLanguage();
   const [isRegister, setIsRegister] = useState(false);
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [error, setError] = useState('');
@@ -33,16 +37,16 @@ export default function Auth() {
   return (
     <div className="auth-page">
       <div className="auth-card">
-        <h1 className="auth-title">CatchUp</h1>
+        <h1 className="auth-title">{t('appName')}</h1>
         <p className="auth-subtitle">
-          {isRegister ? 'Create your account' : 'Welcome back'}
+          {isRegister ? t('createYourAccount') : t('welcomeBack')}
         </p>
 
         <form onSubmit={handleSubmit}>
           <div className="form-group">
             <input
               type="text"
-              placeholder="Username"
+              placeholder={t('username')}
               value={username}
               onChange={e => setUsername(e.target.value)}
               required
@@ -54,7 +58,7 @@ export default function Auth() {
               <div className="form-group">
                 <input
                   type="text"
-                  placeholder="Display Name"
+                  placeholder={t('displayName')}
                   value={displayName}
                   onChange={e => setDisplayName(e.target.value)}
                 />
@@ -62,7 +66,7 @@ export default function Auth() {
               <div className="form-group">
                 <input
                   type="tel"
-                  placeholder="Phone Number (e.g. +1234567890)"
+                  placeholder={`${t('phoneNumber')} (${t('phonePlaceholder')})`}
                   value={phone}
                   onChange={e => setPhone(e.target.value)}
                 />
@@ -70,7 +74,7 @@ export default function Auth() {
               <div className="form-group">
                 <input
                   type="tel"
-                  placeholder="WhatsApp Number (e.g. +1234567890)"
+                  placeholder={`${t('whatsappNumber')} (${t('phonePlaceholder')})`}
                   value={whatsapp}
                   onChange={e => setWhatsapp(e.target.value)}
                 />
@@ -78,14 +82,22 @@ export default function Auth() {
             </>
           )}
 
-          <div className="form-group">
+          <div className="form-group" style={{ position: 'relative' }}>
             <input
-              type="password"
-              placeholder="Password"
+              type={showPassword ? 'text' : 'password'}
+              placeholder={t('password')}
               value={password}
               onChange={e => setPassword(e.target.value)}
               required
+              style={{ paddingRight: 44 }}
             />
+            <button
+              type="button"
+              onClick={() => setShowPassword(!showPassword)}
+              style={{ position: 'absolute', right: 10, top: '50%', transform: 'translateY(-50%)', color: 'var(--text-muted)', padding: 4 }}
+            >
+              {showPassword ? <EyeOff size={20} /> : <Eye size={20} />}
+            </button>
           </div>
 
           {error && <p className="error-text">{error}</p>}
@@ -96,14 +108,14 @@ export default function Auth() {
             disabled={submitting}
             style={{ marginTop: 8 }}
           >
-            {submitting ? 'Please wait...' : isRegister ? 'Create Account' : 'Sign In'}
+            {submitting ? t('pleaseWait') : isRegister ? t('createAccount') : t('signIn')}
           </button>
         </form>
 
         <div className="auth-toggle">
-          {isRegister ? 'Already have an account? ' : "Don't have an account? "}
+          {isRegister ? t('alreadyHaveAccount') : t('dontHaveAccount')}
           <button onClick={() => { setIsRegister(!isRegister); setError(''); }}>
-            {isRegister ? 'Sign In' : 'Sign Up'}
+            {isRegister ? t('signIn') : t('signUp')}
           </button>
         </div>
       </div>

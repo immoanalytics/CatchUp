@@ -2,6 +2,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { Phone, Plus, Check, Clock, Calendar, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
+import { useLanguage } from '../context/LanguageContext';
 import CallSheet from '../components/CallSheet';
 
 function getTimeSince(isoString) {
@@ -11,25 +12,25 @@ function getTimeSince(isoString) {
   const hours = Math.floor(mins / 60);
   if (hours > 0) return `${hours}h ${mins % 60}m`;
   if (mins > 0) return `${mins} min${mins !== 1 ? 's' : ''}`;
-  return 'just now';
+  return null; // will use t('justNow')
 }
 
 function getTimeRemaining(isoString) {
   if (!isoString) return null;
   const diff = new Date(isoString).getTime() - Date.now();
-  if (diff <= 0) return 'expiring...';
+  if (diff <= 0) return 'expiring';
   const mins = Math.floor(diff / 60000);
   const hours = Math.floor(mins / 60);
-  if (hours > 0) return `${hours}h ${mins % 60}m left`;
-  return `${mins} min${mins !== 1 ? 's' : ''} left`;
+  if (hours > 0) return `${hours}h ${mins % 60}m`;
+  return `${mins} min${mins !== 1 ? 's' : ''}`;
 }
 
-const DURATION_OPTIONS = [
-  { label: '15 min', value: 15 },
-  { label: '30 min', value: 30 },
-  { label: '1 hour', value: 60 },
-  { label: '2 hours', value: 120 },
-  { label: 'No limit', value: null },
+const DURATION_KEYS = [
+  { key: 'min15', value: 15 },
+  { key: 'min30', value: 30 },
+  { key: 'hour1', value: 60 },
+  { key: 'hours2', value: 120 },
+  { key: 'noLimit', value: null },
 ];
 
 const DAY_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
@@ -88,6 +89,7 @@ function getNextSchedule(schedules) {
 export default function Home() {
   const { user, apiFetch } = useAuth();
   const socket = useSocket();
+  const { lang, setLanguage, t } = useLanguage();
   const [isAvailable, setIsAvailable] = useState(false);
   const [availableSince, setAvailableSince] = useState(null);
   const [availableUntil, setAvailableUntil] = useState(null);
@@ -187,10 +189,8 @@ export default function Home() {
 
   function handleAvailabilityCardClick() {
     if (isAvailable) {
-      // Turn off availability
       setAvailableViaApi(false, null);
     } else {
-      // Show duration picker
       setShowDurationPicker(true);
     }
   }
@@ -213,15 +213,14 @@ export default function Home() {
     } catch (err) {
       console.error('Failed to set availability:', err);
     }
-    // Broadcast to friends via socket
     if (socket) {
       socket.emit('availability:set', { isAvailable: available, duration: available ? duration : null });
     }
   }
 
-  const filterNames = ['All', ...circles.map(c => c.name)];
+  const filterNames = [t('all'), ...circles.map(c => c.name)];
 
-  const filteredFriends = filter === 'All'
+  const filteredFriends = filter === t('all')
     ? friends
     : friends.filter(f => f.circles && f.circles.some(c => c.name === filter));
 
@@ -230,21 +229,43 @@ export default function Home() {
   }
 
   function getAvailabilitySubtext() {
-    if (!isAvailable) return 'Tap to let friends know';
+    if (!isAvailable) return t('tapToLetFriends');
     const remaining = getTimeRemaining(availableUntil);
-    if (remaining) return remaining;
-    return `Available for ${getTimeSince(availableSince)}`;
+    if (remaining === 'expiring') return t('expiring');
+    if (remaining) return `${remaining} ${t('left')}`;
+    const since = getTimeSince(availableSince);
+    if (!since) return `${t('availableFor')} ${t('justNow')}`;
+    return `${t('availableFor')} ${since}`;
   }
 
   function getFriendStatus(friend) {
     const remaining = getTimeRemaining(friend.availableUntil);
-    if (remaining) return remaining;
-    return `Free for ${getTimeSince(friend.availableSince)}`;
+    if (remaining === 'expiring') return t('expiring');
+    if (remaining) return `${remaining} ${t('left')}`;
+    const since = getTimeSince(friend.availableSince);
+    if (!since) return `${t('freeFor')} ${t('justNow')}`;
+    return `${t('freeFor')} ${since}`;
   }
 
   return (
     <div className="page-content">
-      <h1 className="page-title">CatchUp</h1>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+        <h1 className="page-title" style={{ marginBottom: 0 }}>{t('appName')}</h1>
+        <button
+          onClick={() => setLanguage(lang === 'en' ? 'ro' : 'en')}
+          style={{
+            fontSize: 22,
+            padding: '4px 8px',
+            borderRadius: 'var(--radius-sm)',
+            background: 'var(--bg-card)',
+            border: '1px solid var(--border-color)',
+            lineHeight: 1
+          }}
+          title={lang === 'en' ? 'Switch to Romanian' : 'Switch to English'}
+        >
+          {lang === 'en' ? '🇷🇴' : '🇬🇧'}
+        </button>
+      </div>
 
       {/* Availability toggle card */}
       <div
@@ -254,10 +275,10 @@ export default function Home() {
         <div className="plus-icon">
           {isAvailable ? <Check size={24} color="white" /> : <Plus size={24} color="var(--text-muted)" />}
         </div>
-        <h3>{isAvailable ? "You're Available" : "I'm Available"}</h3>
+        <h3>{isAvailable ? t('youreAvailable') : t('imAvailable')}</h3>
         <p>{getAvailabilitySubtext()}</p>
         {isAvailable && (
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Tap to turn off</p>
+          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t('tapToTurnOff')}</p>
         )}
       </div>
 
@@ -270,11 +291,11 @@ export default function Home() {
           <div className="schedule-indicator">
             <Calendar size={16} />
             {active ? (
-              <span>Scheduled until {active.endTime} today</span>
+              <span>{t('scheduledUntilToday')} {active.endTime} {t('today')}</span>
             ) : next ? (
-              <span>Next: {next.nextDay} {next.startTime} – {next.endTime}</span>
+              <span>{t('next')} {next.nextDay} {next.startTime} – {next.endTime}</span>
             ) : null}
-            <span className="schedule-badge">Scheduled</span>
+            <span className="schedule-badge">{t('scheduled')}</span>
           </div>
         );
       })()}
@@ -294,14 +315,14 @@ export default function Home() {
 
       {/* Available friends section */}
       <div className="section-header">
-        <h2 style={{ fontSize: 18, fontWeight: 600 }}>Available Now</h2>
+        <h2 style={{ fontSize: 18, fontWeight: 600 }}>{t('availableNow')}</h2>
         <span className="badge">{filteredFriends.length}</span>
       </div>
 
       {filteredFriends.length === 0 && (
         <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
-          <p style={{ marginBottom: 8 }}>No friends available right now</p>
-          <p style={{ fontSize: 13 }}>When your friends mark themselves as available, they'll show up here</p>
+          <p style={{ marginBottom: 8 }}>{t('noFriendsAvailable')}</p>
+          <p style={{ fontSize: 13 }}>{t('friendsWillShowUp')}</p>
         </div>
       )}
 
@@ -343,15 +364,15 @@ export default function Home() {
         <div className="modal-overlay" onClick={() => setShowDurationPicker(false)}>
           <div className="modal-content" onClick={e => e.stopPropagation()}>
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
-              <h2 className="modal-title" style={{ marginBottom: 0 }}>How long are you free?</h2>
+              <h2 className="modal-title" style={{ marginBottom: 0 }}>{t('howLongFree')}</h2>
               <button onClick={() => setShowDurationPicker(false)} style={{ color: 'var(--text-muted)' }}>
                 <X size={24} />
               </button>
             </div>
             <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
-              {DURATION_OPTIONS.map(opt => (
+              {DURATION_KEYS.map(opt => (
                 <button
-                  key={opt.label}
+                  key={opt.key}
                   className="call-option"
                   style={{ justifyContent: 'space-between' }}
                   onClick={() => setAvailableViaApi(true, opt.value)}
@@ -360,12 +381,12 @@ export default function Home() {
                     <div className="call-option-icon" style={{ background: 'rgba(76,175,80,0.15)', color: 'var(--accent-green)' }}>
                       <Clock size={20} />
                     </div>
-                    <div style={{ fontWeight: 500 }}>{opt.label}</div>
+                    <div style={{ fontWeight: 500 }}>{t(opt.key)}</div>
                   </div>
                   <div style={{ fontSize: 13, color: 'var(--text-muted)', textAlign: 'right' }}>
                     {opt.value
-                      ? `Until ${new Date(Date.now() + opt.value * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
-                      : 'Manual off'}
+                      ? `${t('until')} ${new Date(Date.now() + opt.value * 60000).toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' })}`
+                      : t('manualOff')}
                   </div>
                 </button>
               ))}

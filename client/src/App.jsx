@@ -12,7 +12,7 @@ export default function App() {
   if (loading) {
     return (
       <div className="app-container" style={{ display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-        <div style={{ color: 'var(--text-muted)', fontSize: 18 }}>Loading...</div>
+        <div style={{ color: 'var(--text-muted)', fontSize: 18 }}>...</div>
       </div>
     );
   }
