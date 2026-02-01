@@ -87,6 +87,7 @@ router.get('/me', authenticateToken, (req, res) => {
     phone: user.phone,
     whatsapp: user.whatsapp,
     avatarColor: user.avatar_color,
+    photo: user.photo || null,
     isAvailable: !!user.is_available,
     availableSince: user.available_since,
     availableUntil: user.available_until,
@@ -111,8 +112,23 @@ router.put('/me', authenticateToken, (req, res) => {
     displayName: user.display_name,
     phone: user.phone,
     whatsapp: user.whatsapp,
-    avatarColor: user.avatar_color
+    avatarColor: user.avatar_color,
+    photo: user.photo || null
   });
+});
+
+router.put('/me/photo', authenticateToken, (req, res) => {
+  const { photo } = req.body;
+  if (!photo) return res.status(400).json({ error: 'photo is required' });
+
+  // Validate it's a data URL and not too large (2MB base64 ~= 2.7MB string)
+  if (!photo.startsWith('data:image/') || photo.length > 3000000) {
+    return res.status(400).json({ error: 'Invalid image or too large (max 2MB)' });
+  }
+
+  const db = getDb();
+  db.prepare('UPDATE users SET photo = ? WHERE id = ?').run(photo, req.userId);
+  res.json({ photo });
 });
 
 // ============ AVAILABILITY ============
@@ -156,7 +172,7 @@ router.get('/available', authenticateToken, (req, res) => {
 
   // Get all friends who are available
   const availableFriends = db.prepare(`
-    SELECT u.id, u.display_name, u.phone, u.whatsapp, u.avatar_color,
+    SELECT u.id, u.display_name, u.phone, u.whatsapp, u.avatar_color, u.photo,
            u.available_since, u.available_until, u.is_available
     FROM users u
     INNER JOIN friendships f ON (f.friend_id = u.id AND f.user_id = ?)
@@ -179,6 +195,7 @@ router.get('/available', authenticateToken, (req, res) => {
       phone: friend.phone,
       whatsapp: friend.whatsapp,
       avatarColor: friend.avatar_color,
+      photo: friend.photo || null,
       availableSince: friend.available_since,
       availableUntil: friend.available_until,
       circles: circles.map(c => ({ name: c.name, color: c.color }))

@@ -231,9 +231,13 @@ export default function Home() {
 
       {filteredFriends.map(friend => (
         <div key={friend.id} className="contact-card">
-          <div className="avatar" style={{ backgroundColor: friend.avatarColor || '#6C63FF' }}>
-            {getInitials(friend.displayName)}
-          </div>
+          {friend.photo ? (
+            <img src={friend.photo} alt={friend.displayName} className="avatar" style={{ objectFit: 'cover' }} />
+          ) : (
+            <div className="avatar" style={{ backgroundColor: friend.avatarColor || '#6C63FF' }}>
+              {getInitials(friend.displayName)}
+            </div>
+          )}
           <div className="contact-info">
             <div className="contact-name">{friend.displayName}</div>
             {friend.circles && friend.circles.length > 0 && (

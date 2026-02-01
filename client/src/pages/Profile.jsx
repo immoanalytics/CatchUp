@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Phone, MessageCircle, Bell, ChevronRight, Plus, Camera, LogOut, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 
@@ -16,6 +16,51 @@ export default function Profile() {
   const [scheduleStart, setScheduleStart] = useState('09:00');
   const [scheduleEnd, setScheduleEnd] = useState('09:15');
   const [pushEnabled, setPushEnabled] = useState(true);
+  const fileInputRef = useRef(null);
+
+  function handlePhotoClick() {
+    fileInputRef.current?.click();
+  }
+
+  async function handlePhotoSelect(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Resize and compress the image before uploading
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const img = new Image();
+      img.onload = async () => {
+        const canvas = document.createElement('canvas');
+        const maxSize = 400;
+        let w = img.width;
+        let h = img.height;
+        if (w > h) { h = (h / w) * maxSize; w = maxSize; }
+        else { w = (w / h) * maxSize; h = maxSize; }
+        canvas.width = w;
+        canvas.height = h;
+        const ctx = canvas.getContext('2d');
+        ctx.drawImage(img, 0, 0, w, h);
+        const dataUrl = canvas.toDataURL('image/jpeg', 0.8);
+
+        try {
+          const res = await apiFetch('/me/photo', {
+            method: 'PUT',
+            body: JSON.stringify({ photo: dataUrl })
+          });
+          if (res.ok) {
+            await fetchMe();
+          }
+        } catch (err) {
+          console.error('Failed to upload photo:', err);
+        }
+      };
+      img.src = ev.target.result;
+    };
+    reader.readAsDataURL(file);
+    // Reset so the same file can be selected again
+    e.target.value = '';
+  }
 
   const fetchSchedules = useCallback(async () => {
     try {
@@ -121,20 +166,42 @@ export default function Profile() {
 
       {/* Avatar and name */}
       <div style={{ textAlign: 'center', marginBottom: 28 }}>
-        <div
-          className="avatar avatar-large"
-          style={{ backgroundColor: user.avatarColor || '#6C63FF', margin: '0 auto 4px', position: 'relative', cursor: 'pointer' }}
-          onClick={openEditProfile}
-        >
-          {getInitials(user.displayName)}
-          <div style={{
-            position: 'absolute', bottom: -2, right: -2, width: 28, height: 28,
-            borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex',
-            alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-primary)'
-          }}>
+        <div style={{ position: 'relative', display: 'inline-block' }}>
+          {user.photo ? (
+            <img
+              src={user.photo}
+              alt={user.displayName}
+              style={{ width: 100, height: 100, borderRadius: '50%', objectFit: 'cover', cursor: 'pointer' }}
+              onClick={handlePhotoClick}
+            />
+          ) : (
+            <div
+              className="avatar avatar-large"
+              style={{ backgroundColor: user.avatarColor || '#6C63FF', cursor: 'pointer' }}
+              onClick={handlePhotoClick}
+            >
+              {getInitials(user.displayName)}
+            </div>
+          )}
+          <div
+            style={{
+              position: 'absolute', bottom: -2, right: -2, width: 28, height: 28,
+              borderRadius: '50%', background: 'var(--bg-secondary)', display: 'flex',
+              alignItems: 'center', justifyContent: 'center', border: '2px solid var(--bg-primary)',
+              cursor: 'pointer'
+            }}
+            onClick={handlePhotoClick}
+          >
             <Camera size={14} color="var(--text-muted)" />
           </div>
         </div>
+        <input
+          ref={fileInputRef}
+          type="file"
+          accept="image/*"
+          style={{ display: 'none' }}
+          onChange={handlePhotoSelect}
+        />
         <h2 style={{ fontSize: 20, marginTop: 8 }}>{user.displayName}</h2>
         <p style={{ color: 'var(--text-muted)', fontSize: 14, cursor: 'pointer' }} onClick={openEditProfile}>
           Tap to edit

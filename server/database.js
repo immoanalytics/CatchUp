@@ -94,6 +94,9 @@ function initializeDatabase() {
   if (!userColumns.includes('available_until')) {
     db.exec("ALTER TABLE users ADD COLUMN available_until TEXT");
   }
+  if (!userColumns.includes('photo')) {
+    db.exec("ALTER TABLE users ADD COLUMN photo TEXT");
+  }
 
   return db;
 }
