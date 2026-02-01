@@ -448,6 +448,36 @@ input::placeholder {
   color: var(--text-muted);
 }
 
+/* Schedule indicator */
+.schedule-indicator {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 10px 14px;
+  background: rgba(108, 99, 255, 0.1);
+  border: 1px solid rgba(108, 99, 255, 0.3);
+  border-radius: var(--radius);
+  margin-bottom: 16px;
+  font-size: 13px;
+  color: var(--text-secondary);
+}
+
+.schedule-indicator svg {
+  color: var(--accent-blue);
+  flex-shrink: 0;
+}
+
+.schedule-badge {
+  margin-left: auto;
+  font-size: 11px;
+  font-weight: 600;
+  color: var(--accent-blue);
+  background: rgba(108, 99, 255, 0.15);
+  padding: 2px 8px;
+  border-radius: var(--radius-full);
+  white-space: nowrap;
+}
+
 /* Contact card */
 .contact-card {
   display: flex;

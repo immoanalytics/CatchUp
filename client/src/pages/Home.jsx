@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Phone, Plus, Check, Clock, X } from 'lucide-react';
+import { Phone, Plus, Check, Clock, Calendar, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import CallSheet from '../components/CallSheet';
@@ -32,6 +32,59 @@ const DURATION_OPTIONS = [
   { label: 'No limit', value: null },
 ];
 
+const DAY_MAP = { Sun: 0, Mon: 1, Tue: 2, Wed: 3, Thu: 4, Fri: 5, Sat: 6 };
+const DAY_NAMES = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+
+function getActiveSchedule(schedules) {
+  if (!schedules || schedules.length === 0) return null;
+  const now = new Date();
+  const todayName = DAY_NAMES[now.getDay()];
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+
+  for (const s of schedules) {
+    if (!s.enabled) continue;
+    const days = s.days.split(',').map(d => d.trim());
+    if (!days.includes(todayName)) continue;
+    const [sh, sm] = s.startTime.split(':').map(Number);
+    const [eh, em] = s.endTime.split(':').map(Number);
+    const startMins = sh * 60 + sm;
+    const endMins = eh * 60 + em;
+    if (nowMins >= startMins && nowMins < endMins) {
+      return { ...s, status: 'active', endTime: s.endTime };
+    }
+  }
+  return null;
+}
+
+function getNextSchedule(schedules) {
+  if (!schedules || schedules.length === 0) return null;
+  const now = new Date();
+  const todayIdx = now.getDay();
+  const nowMins = now.getHours() * 60 + now.getMinutes();
+  let best = null;
+  let bestDist = Infinity;
+
+  for (const s of schedules) {
+    if (!s.enabled) continue;
+    const days = s.days.split(',').map(d => d.trim());
+    for (const dayName of days) {
+      const dayIdx = DAY_MAP[dayName];
+      if (dayIdx === undefined) continue;
+      const [sh, sm] = s.startTime.split(':').map(Number);
+      const startMins = sh * 60 + sm;
+      let dayDiff = dayIdx - todayIdx;
+      if (dayDiff < 0) dayDiff += 7;
+      if (dayDiff === 0 && startMins <= nowMins) dayDiff = 7;
+      const dist = dayDiff * 1440 + (startMins - nowMins);
+      if (dist > 0 && dist < bestDist) {
+        bestDist = dist;
+        best = { ...s, nextDay: dayName };
+      }
+    }
+  }
+  return best;
+}
+
 export default function Home() {
   const { user, apiFetch } = useAuth();
   const socket = useSocket();
@@ -43,14 +96,16 @@ export default function Home() {
   const [circles, setCircles] = useState([]);
   const [callContact, setCallContact] = useState(null);
   const [showDurationPicker, setShowDurationPicker] = useState(false);
+  const [schedules, setSchedules] = useState([]);
   const [, setTick] = useState(0);
 
   const fetchData = useCallback(async () => {
     try {
-      const [meRes, availRes, circlesRes] = await Promise.all([
+      const [meRes, availRes, circlesRes, schedRes] = await Promise.all([
         apiFetch('/me'),
         apiFetch('/available'),
-        apiFetch('/circles')
+        apiFetch('/circles'),
+        apiFetch('/schedules')
       ]);
       if (meRes.ok) {
         const me = await meRes.json();
@@ -63,6 +118,9 @@ export default function Home() {
       }
       if (circlesRes.ok) {
         setCircles(await circlesRes.json());
+      }
+      if (schedRes.ok) {
+        setSchedules(await schedRes.json());
       }
     } catch (err) {
       console.error('Failed to fetch data:', err);
@@ -202,6 +260,24 @@ export default function Home() {
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>Tap to turn off</p>
         )}
       </div>
+
+      {/* Scheduled availability indicator */}
+      {schedules.length > 0 && (() => {
+        const active = getActiveSchedule(schedules);
+        const next = !active ? getNextSchedule(schedules) : null;
+        if (!active && !next) return null;
+        return (
+          <div className="schedule-indicator">
+            <Calendar size={16} />
+            {active ? (
+              <span>Scheduled until {active.endTime} today</span>
+            ) : next ? (
+              <span>Next: {next.nextDay} {next.startTime} – {next.endTime}</span>
+            ) : null}
+            <span className="schedule-badge">Scheduled</span>
+          </div>
+        );
+      })()}
 
       {/* Filter chips */}
       <div className="filter-bar">
