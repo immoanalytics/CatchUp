@@ -223,7 +223,7 @@ export default function Circles() {
         </div>
 
         {showAddFriend && (
-          <div className="modal-overlay" onClick={() => { setShowAddFriend(false); setContactMatches([]); }}>
+          <div className="modal-overlay modal-top" onClick={() => { setShowAddFriend(false); setContactMatches([]); }}>
             <div className="modal-content" onClick={e => e.stopPropagation()}>
               <h2 className="modal-title">{t('addFriendTo')} {selectedCircle.name}</h2>
               <div className="form-group">
