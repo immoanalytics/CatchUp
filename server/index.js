@@ -189,7 +189,7 @@ if (process.env.NODE_ENV === 'production') {
 }
 
 const listenPort = (SSL_KEY && SSL_CERT && fs.existsSync(SSL_KEY)) ? HTTPS_PORT : PORT;
-server.listen(listenPort, () => {
+server.listen(listenPort, '0.0.0.0', () => {
   const protocol = server instanceof https.Server ? 'https' : 'http';
-  console.log(`CatchUp server running on ${protocol}://localhost:${listenPort}`);
+  console.log(`CatchUp server running on ${protocol}://0.0.0.0:${listenPort}`);
 });
