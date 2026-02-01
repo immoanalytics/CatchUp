@@ -272,7 +272,7 @@ input::placeholder {
 .fab {
   position: fixed;
   bottom: 80px;
-  right: calc(50% - 220px);
+  right: max(16px, calc(50% - 220px));
   width: 56px;
   height: 56px;
   border-radius: 50%;
