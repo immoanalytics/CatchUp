@@ -1,5 +1,5 @@
-import { useState, useEffect, useCallback } from 'react';
-import { Plus, Heart, Briefcase, Users, ChevronRight, X, UserPlus, Trash2, BookUser } from 'lucide-react';
+import { useState, useEffect, useCallback, useRef } from 'react';
+import { Plus, Heart, Briefcase, Users, ChevronRight, X, UserPlus, Trash2, BookUser, Upload } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -33,6 +33,8 @@ export default function Circles() {
   const [error, setError] = useState('');
   const [contactMatches, setContactMatches] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const vcfInputRef = useRef(null);
+  const hasContactPicker = typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window;
 
   const fetchCircles = useCallback(async () => {
     try {
@@ -134,15 +136,13 @@ export default function Circles() {
     }
   }
 
-  async function lookupByPhone() {
-    const phone = prompt(t('enterPhoneToLookup'));
-    if (!phone) return;
+  async function lookupPhones(phones) {
     setLoadingContacts(true);
     setError('');
     try {
       const res = await apiFetch('/users/lookup', {
         method: 'POST',
-        body: JSON.stringify({ phones: [phone] })
+        body: JSON.stringify({ phones })
       });
       if (res.ok) {
         const matches = await res.json();
@@ -153,6 +153,52 @@ export default function Circles() {
       setError(err.message);
     }
     setLoadingContacts(false);
+  }
+
+  async function findFromContacts() {
+    if (!hasContactPicker) return;
+    try {
+      const contacts = await navigator.contacts.select(['tel'], { multiple: true });
+      const phones = contacts.flatMap(c => c.tel || []).map(t => t.replace(/\D/g, '')).filter(p => p.length >= 6);
+      if (phones.length === 0) {
+        setError(t('noCatchUpUser'));
+        return;
+      }
+      await lookupPhones(phones);
+    } catch (err) {
+      // Contact picker failed or was cancelled — ignore
+      if (err.name !== 'TypeError' && err.message) setError(err.message);
+    }
+  }
+
+  function handleVcfImport(e) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    const reader = new FileReader();
+    reader.onload = async (ev) => {
+      const text = ev.target.result;
+      // Parse phone numbers from vCard format
+      const phoneRegex = /TEL[^:]*:([\d\s+\-().]+)/gi;
+      const phones = [];
+      let match;
+      while ((match = phoneRegex.exec(text)) !== null) {
+        const cleaned = match[1].replace(/\D/g, '');
+        if (cleaned.length >= 6) phones.push(cleaned);
+      }
+      if (phones.length === 0) {
+        setError(t('noCatchUpUser'));
+        return;
+      }
+      await lookupPhones([...new Set(phones)]);
+    };
+    reader.readAsText(file);
+    e.target.value = '';
+  }
+
+  async function lookupByPhone() {
+    const phone = prompt(t('enterPhoneToLookup'));
+    if (!phone) return;
+    await lookupPhones([phone]);
   }
 
   async function removeMemberFromCircle(memberId) {
@@ -239,15 +285,44 @@ export default function Circles() {
                   autoFocus
                 />
               </div>
-              <button
-                className="btn btn-block"
-                style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', marginBottom: 16, gap: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
-                onClick={lookupByPhone}
-                disabled={loadingContacts}
-              >
-                <BookUser size={18} />
-                {loadingContacts ? t('checking') : t('lookUpByPhone')}
-              </button>
+              <div style={{ display: 'flex', flexDirection: 'column', gap: 8, marginBottom: 16 }}>
+                {hasContactPicker && (
+                  <button
+                    className="btn btn-block"
+                    style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', gap: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                    onClick={findFromContacts}
+                    disabled={loadingContacts}
+                  >
+                    <BookUser size={18} />
+                    {loadingContacts ? t('checking') : t('findFromContacts')}
+                  </button>
+                )}
+                <button
+                  className="btn btn-block"
+                  style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', gap: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onClick={() => vcfInputRef.current?.click()}
+                  disabled={loadingContacts}
+                >
+                  <Upload size={18} />
+                  {t('importContacts')}
+                </button>
+                <button
+                  className="btn btn-block"
+                  style={{ background: 'var(--bg-card)', border: '1px solid var(--border-color)', gap: 8, display: 'flex', alignItems: 'center', justifyContent: 'center' }}
+                  onClick={lookupByPhone}
+                  disabled={loadingContacts}
+                >
+                  <BookUser size={18} />
+                  {t('lookUpByPhone')}
+                </button>
+                <input
+                  ref={vcfInputRef}
+                  type="file"
+                  accept=".vcf,text/vcard"
+                  style={{ display: 'none' }}
+                  onChange={handleVcfImport}
+                />
+              </div>
               {error && <p className="error-text">{error}</p>}
               {contactMatches.length > 0 && searchResults.length === 0 && (
                 <div style={{ marginBottom: 8 }}>
