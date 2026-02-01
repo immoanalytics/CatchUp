@@ -21,8 +21,8 @@ initializeDatabase();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
-// Health check for Railway
-app.get('/health', (req, res) => res.status(200).send('ok'));
+// Health check for Railway (respond to both GET and HEAD)
+app.use('/health', (req, res) => res.status(200).send('ok'));
 
 // API routes
 app.use('/api', routes);
