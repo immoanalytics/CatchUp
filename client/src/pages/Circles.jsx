@@ -33,6 +33,7 @@ export default function Circles() {
   const [error, setError] = useState('');
   const [contactMatches, setContactMatches] = useState([]);
   const [loadingContacts, setLoadingContacts] = useState(false);
+  const [savedPhones, setSavedPhones] = useState([]);
   const vcfInputRef = useRef(null);
   const hasContactPicker = typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window;
 
@@ -136,9 +137,10 @@ export default function Circles() {
     }
   }
 
-  async function lookupPhones(phones) {
+  async function lookupPhones(phones, save) {
     setLoadingContacts(true);
     setError('');
+    if (save) setSavedPhones(prev => [...new Set([...prev, ...phones])]);
     try {
       const res = await apiFetch('/users/lookup', {
         method: 'POST',
@@ -155,18 +157,23 @@ export default function Circles() {
     setLoadingContacts(false);
   }
 
+  async function refreshSavedContacts() {
+    if (savedPhones.length > 0) {
+      await lookupPhones(savedPhones, false);
+    }
+  }
+
   async function findFromContacts() {
     if (!hasContactPicker) return;
     try {
       const contacts = await navigator.contacts.select(['tel'], { multiple: true });
-      const phones = contacts.flatMap(c => c.tel || []).map(t => t.replace(/\D/g, '')).filter(p => p.length >= 6);
+      const phones = contacts.flatMap(c => c.tel || []).map(p => p.replace(/\D/g, '')).filter(p => p.length >= 6);
       if (phones.length === 0) {
         setError(t('noCatchUpUser'));
         return;
       }
-      await lookupPhones(phones);
+      await lookupPhones(phones, true);
     } catch (err) {
-      // Contact picker failed or was cancelled — ignore
       if (err.name !== 'TypeError' && err.message) setError(err.message);
     }
   }
@@ -177,7 +184,6 @@ export default function Circles() {
     const reader = new FileReader();
     reader.onload = async (ev) => {
       const text = ev.target.result;
-      // Parse phone numbers from vCard format
       const phoneRegex = /TEL[^:]*:([\d\s+\-().]+)/gi;
       const phones = [];
       let match;
@@ -189,7 +195,7 @@ export default function Circles() {
         setError(t('noCatchUpUser'));
         return;
       }
-      await lookupPhones([...new Set(phones)]);
+      await lookupPhones([...new Set(phones)], true);
     };
     reader.readAsText(file);
     e.target.value = '';
@@ -198,7 +204,7 @@ export default function Circles() {
   async function lookupByPhone() {
     const phone = prompt(t('enterPhoneToLookup'));
     if (!phone) return;
-    await lookupPhones([phone]);
+    await lookupPhones([phone], false);
   }
 
   async function removeMemberFromCircle(memberId) {
@@ -229,7 +235,7 @@ export default function Circles() {
 
         <div className="section-header">
           <span className="section-title">{t('members')}</span>
-          <button style={{ color: 'var(--accent-blue)', fontSize: 14, fontWeight: 500 }} onClick={() => setShowAddFriend(true)}>
+          <button style={{ color: 'var(--accent-blue)', fontSize: 14, fontWeight: 500 }} onClick={() => { setShowAddFriend(true); refreshSavedContacts(); }}>
             {t('add')}
           </button>
         </div>
