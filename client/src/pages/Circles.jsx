@@ -132,9 +132,29 @@ export default function Circles() {
     }
   }
 
+  const hasContactPicker = typeof navigator !== 'undefined' && 'contacts' in navigator && 'ContactsManager' in window;
+
   async function findFromContacts() {
-    if (!('contacts' in navigator && 'ContactsManager' in window)) {
-      setError('Contact access is not supported on this browser. Try from a mobile device.');
+    if (!hasContactPicker) {
+      // Fallback: prompt for phone number input
+      const phone = prompt('Enter a phone number to look up:');
+      if (!phone) return;
+      setLoadingContacts(true);
+      setError('');
+      try {
+        const res = await apiFetch('/users/lookup', {
+          method: 'POST',
+          body: JSON.stringify({ phones: [phone] })
+        });
+        if (res.ok) {
+          const matches = await res.json();
+          setContactMatches(matches);
+          if (matches.length === 0) setError('No CatchUp user found with that phone number.');
+        }
+      } catch (err) {
+        setError(err.message);
+      }
+      setLoadingContacts(false);
       return;
     }
     setLoadingContacts(true);
@@ -157,7 +177,7 @@ export default function Circles() {
         if (matches.length === 0) setError('None of the selected contacts are on CatchUp yet.');
       }
     } catch (err) {
-      if (err.name !== 'TypeError') setError(err.message);
+      setError(err.message || 'Could not access contacts.');
     }
     setLoadingContacts(false);
   }
@@ -249,7 +269,7 @@ export default function Circles() {
                 disabled={loadingContacts}
               >
                 <BookUser size={18} />
-                {loadingContacts ? 'Checking contacts...' : 'Find from Contacts'}
+                {loadingContacts ? 'Checking...' : hasContactPicker ? 'Find from Contacts' : 'Look up by Phone Number'}
               </button>
               {error && <p className="error-text">{error}</p>}
               {contactMatches.length > 0 && searchResults.length === 0 && (
