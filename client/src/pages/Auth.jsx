@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import { Eye, EyeOff } from 'lucide-react';
+import { Eye, EyeOff, Copy } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -71,13 +71,30 @@ export default function Auth() {
                   onChange={e => setPhone(e.target.value)}
                 />
               </div>
-              <div className="form-group">
+              <div className="form-group" style={{ position: 'relative' }}>
                 <input
                   type="tel"
                   placeholder={`${t('whatsappNumber')} (${t('phonePlaceholder')})`}
                   value={whatsapp}
                   onChange={e => setWhatsapp(e.target.value)}
+                  style={{ paddingRight: phone ? 130 : undefined }}
                 />
+                {phone && (
+                  <button
+                    type="button"
+                    onClick={() => setWhatsapp(phone)}
+                    style={{
+                      position: 'absolute', right: 8, top: '50%', transform: 'translateY(-50%)',
+                      color: 'var(--accent-blue)', padding: '4px 8px', fontSize: 12, fontWeight: 500,
+                      display: 'flex', alignItems: 'center', gap: 4,
+                      background: 'var(--bg-secondary)', borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-color)'
+                    }}
+                  >
+                    <Copy size={12} />
+                    {t('sameAsPhone')}
+                  </button>
+                )}
               </div>
             </>
           )}

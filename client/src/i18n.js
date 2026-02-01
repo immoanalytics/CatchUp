@@ -17,6 +17,7 @@ const translations = {
     signUp: 'Sign Up',
     createAccount: 'Create Account',
     pleaseWait: 'Please wait...',
+    sameAsPhone: 'Same as phone',
     alreadyHaveAccount: 'Already have an account? ',
     dontHaveAccount: "Don't have an account? ",
 
@@ -118,6 +119,7 @@ const translations = {
     signUp: 'Inregistrare',
     createAccount: 'Creeaza cont',
     pleaseWait: 'Te rugam asteapta...',
+    sameAsPhone: 'La fel ca telefonul',
     alreadyHaveAccount: 'Ai deja un cont? ',
     dontHaveAccount: 'Nu ai un cont? ',
 
