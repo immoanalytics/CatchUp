@@ -17,7 +17,12 @@ export default function Profile() {
   const [scheduleDays, setScheduleDays] = useState([]);
   const [scheduleStart, setScheduleStart] = useState('09:00');
   const [scheduleEnd, setScheduleEnd] = useState('09:15');
-  const [pushEnabled, setPushEnabled] = useState(true);
+  const [pushEnabled, setPushEnabled] = useState(() => {
+    return localStorage.getItem('catchup-notifications') !== 'false';
+  });
+  const [notificationPermission, setNotificationPermission] = useState(
+    typeof Notification !== 'undefined' ? Notification.permission : 'denied'
+  );
   const fileInputRef = useRef(null);
 
   function handlePhotoClick() {
@@ -151,6 +156,26 @@ export default function Profile() {
 
   function formatDays(daysStr) {
     return daysStr.split(',').join(', ');
+  }
+
+  async function toggleNotifications() {
+    if (!pushEnabled) {
+      // Turning on - request permission if needed
+      if (typeof Notification !== 'undefined' && Notification.permission === 'default') {
+        const permission = await Notification.requestPermission();
+        setNotificationPermission(permission);
+        if (permission !== 'granted') {
+          return; // Don't enable if permission denied
+        }
+      }
+      if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
+        alert(t('notificationBlocked'));
+        return;
+      }
+    }
+    const newValue = !pushEnabled;
+    setPushEnabled(newValue);
+    localStorage.setItem('catchup-notifications', newValue ? 'true' : 'false');
   }
 
   function openEditProfile() {
@@ -293,11 +318,13 @@ export default function Profile() {
         </div>
         <div style={{ flex: 1 }}>
           <div style={{ fontWeight: 500 }}>{t('pushNotifications')}</div>
-          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{t('pushDescription')}</div>
+          <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>
+            {notificationPermission === 'denied' ? t('notificationBlocked') : t('pushDescription')}
+          </div>
         </div>
         <div
-          className={`toggle ${pushEnabled ? 'active' : ''}`}
-          onClick={() => setPushEnabled(!pushEnabled)}
+          className={`toggle ${pushEnabled && notificationPermission === 'granted' ? 'active' : ''}`}
+          onClick={toggleNotifications}
         />
       </div>
 

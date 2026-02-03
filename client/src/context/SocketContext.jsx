@@ -4,6 +4,19 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext(null);
 
+function showNotification(title, body) {
+  if (Notification.permission === 'granted') {
+    const notificationsEnabled = localStorage.getItem('catchup-notifications') !== 'false';
+    if (notificationsEnabled) {
+      new Notification(title, {
+        body,
+        icon: '/favicon.svg',
+        tag: 'catchup-availability'
+      });
+    }
+  }
+}
+
 export function SocketProvider({ children }) {
   const { token } = useAuth();
   const [socket, setSocket] = useState(null);
@@ -28,6 +41,13 @@ export function SocketProvider({ children }) {
 
     s.on('connect_error', (err) => {
       console.error('Socket error:', err.message);
+    });
+
+    s.on('availability:changed', (data) => {
+      if (data.isAvailable) {
+        const name = data.displayName || data.username || 'A friend';
+        showNotification('CatchUp', `${name} is now available!`);
+      }
     });
 
     setSocket(s);
