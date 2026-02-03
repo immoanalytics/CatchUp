@@ -224,6 +224,9 @@ export default function Home() {
     return new Date(f.availableUntil).getTime() > Date.now();
   });
 
+  // Check if own availability has expired client-side
+  const effectivelyAvailable = isAvailable && (!availableUntil || new Date(availableUntil).getTime() > Date.now());
+
   const filteredFriends = filter === null
     ? activeFriends
     : activeFriends.filter(f => f.circles && f.circles.some(c => c.name === filter));
@@ -233,7 +236,7 @@ export default function Home() {
   }
 
   function getAvailabilitySubtext() {
-    if (!isAvailable) return t('tapToLetFriends');
+    if (!effectivelyAvailable) return t('tapToLetFriends');
     const remaining = getTimeRemaining(availableUntil);
     if (remaining === 'expiring') return t('expiring');
     if (remaining) return `${remaining} ${t('left')}`;
@@ -273,15 +276,15 @@ export default function Home() {
 
       {/* Availability toggle card */}
       <div
-        className={`availability-card ${isAvailable ? 'available' : ''}`}
+        className={`availability-card ${effectivelyAvailable ? 'available' : ''}`}
         onClick={handleAvailabilityCardClick}
       >
         <div className="plus-icon">
-          {isAvailable ? <Check size={24} color="white" /> : <Plus size={24} color="var(--text-muted)" />}
+          {effectivelyAvailable ? <Check size={24} color="white" /> : <Plus size={24} color="var(--text-muted)" />}
         </div>
-        <h3>{isAvailable ? t('youreAvailable') : t('imAvailable')}</h3>
+        <h3>{effectivelyAvailable ? t('youreAvailable') : t('imAvailable')}</h3>
         <p>{getAvailabilitySubtext()}</p>
-        {isAvailable && (
+        {effectivelyAvailable && (
           <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t('tapToTurnOff')}</p>
         )}
       </div>
