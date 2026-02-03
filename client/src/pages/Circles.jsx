@@ -337,9 +337,13 @@ export default function Circles() {
               )}
               {(searchResults.length > 0 ? searchResults : contactMatches).map(u => (
                 <div key={u.id} className="contact-card" style={{ cursor: 'pointer' }} onClick={() => addFriend(u)}>
-                  <div className="avatar" style={{ backgroundColor: u.avatarColor }}>
-                    {getInitials(u.displayName)}
-                  </div>
+                  {u.photo ? (
+                    <img src={u.photo} alt={u.displayName} className="avatar" style={{ objectFit: 'cover' }} />
+                  ) : (
+                    <div className="avatar" style={{ backgroundColor: u.avatarColor }}>
+                      {getInitials(u.displayName)}
+                    </div>
+                  )}
                   <div className="contact-info">
                     <div className="contact-name">{u.displayName}</div>
                     <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>@{u.username}</div>

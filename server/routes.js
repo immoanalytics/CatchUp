@@ -450,7 +450,7 @@ router.get('/users/search', authenticateToken, (req, res) => {
 
   const db = getDb();
   const users = db.prepare(`
-    SELECT id, username, display_name, avatar_color, phone FROM users
+    SELECT id, username, display_name, avatar_color, phone, photo FROM users
     WHERE (username LIKE ? OR display_name LIKE ? OR phone LIKE ?) AND id != ?
     LIMIT 20
   `).all(`%${q}%`, `%${q}%`, `%${q}%`, req.userId);
@@ -460,7 +460,8 @@ router.get('/users/search', authenticateToken, (req, res) => {
     username: u.username,
     displayName: u.display_name,
     avatarColor: u.avatar_color,
-    phone: u.phone
+    phone: u.phone,
+    photo: u.photo
   })));
 });
 
@@ -473,7 +474,7 @@ router.post('/users/lookup', authenticateToken, (req, res) => {
   // Normalize: strip all non-digit characters for comparison
   const normalize = p => p.replace(/\D/g, '');
   const allUsers = db.prepare(`
-    SELECT id, username, display_name, avatar_color, phone FROM users
+    SELECT id, username, display_name, avatar_color, phone, photo FROM users
     WHERE phone IS NOT NULL AND phone != '' AND id != ?
   `).all(req.userId);
 
@@ -488,7 +489,8 @@ router.post('/users/lookup', authenticateToken, (req, res) => {
     username: u.username,
     displayName: u.display_name,
     avatarColor: u.avatar_color,
-    phone: u.phone
+    phone: u.phone,
+    photo: u.photo
   })));
 });
 
