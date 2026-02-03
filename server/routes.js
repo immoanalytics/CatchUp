@@ -374,7 +374,7 @@ router.get('/circles/:id/members', authenticateToken, (req, res) => {
   const db = getDb();
   const members = db.prepare(`
     SELECT u.id, u.display_name, u.phone, u.whatsapp, u.avatar_color,
-           u.is_available, u.available_since, u.photo
+           u.is_available, u.available_since, u.available_until, u.photo
     FROM friend_circles fc
     INNER JOIN friendships f ON f.id = fc.friendship_id
     INNER JOIN users u ON u.id = f.friend_id
@@ -390,6 +390,7 @@ router.get('/circles/:id/members', authenticateToken, (req, res) => {
     avatarColor: m.avatar_color,
     isAvailable: !!m.is_available,
     availableSince: m.available_since,
+    availableUntil: m.available_until,
     photo: m.photo
   })));
 });

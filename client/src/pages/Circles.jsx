@@ -258,7 +258,7 @@ export default function Circles() {
             )}
             <div className="contact-info">
               <div className="contact-name">{m.displayName}</div>
-              {m.isAvailable && (
+              {m.isAvailable && (!m.availableUntil || new Date(m.availableUntil).getTime() > Date.now()) && (
                 <div className="contact-status">
                   <span className="status-dot" />
                   {t('availableNow')}
