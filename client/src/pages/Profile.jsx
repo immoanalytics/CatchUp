@@ -178,6 +178,16 @@ export default function Profile() {
     localStorage.setItem('catchup-notifications', newValue ? 'true' : 'false');
   }
 
+  function sendTestNotification() {
+    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
+      new Notification('CatchUp', {
+        body: t('testNotificationBody'),
+        icon: '/favicon.svg',
+        tag: 'catchup-test'
+      });
+    }
+  }
+
   function openEditProfile() {
     setEditDisplayName(user.displayName || '');
     setEditPhone(user.phone || '');
@@ -327,6 +337,16 @@ export default function Profile() {
           onClick={toggleNotifications}
         />
       </div>
+
+      {pushEnabled && notificationPermission === 'granted' && (
+        <button
+          className="btn btn-secondary btn-block"
+          style={{ marginTop: 8 }}
+          onClick={sendTestNotification}
+        >
+          {t('testNotification')}
+        </button>
+      )}
 
       {/* Sign Out */}
       <button
