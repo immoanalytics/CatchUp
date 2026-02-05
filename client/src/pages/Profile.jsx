@@ -192,8 +192,8 @@ export default function Profile() {
     }
 
     try {
-      // Try service worker notification first (better mobile support)
-      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+      // Use service worker for notifications (required on Android)
+      if ('serviceWorker' in navigator) {
         const reg = await navigator.serviceWorker.ready;
         await reg.showNotification('CatchUp', {
           body: t('testNotificationBody'),
@@ -201,7 +201,7 @@ export default function Profile() {
           tag: 'catchup-test'
         });
       } else {
-        // Fall back to regular Notification API
+        // Fall back to regular Notification API (desktop)
         new Notification('CatchUp', {
           body: t('testNotificationBody'),
           icon: '/favicon.svg',

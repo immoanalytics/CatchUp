@@ -4,16 +4,34 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext(null);
 
-function showNotification(title, body) {
-  if (Notification.permission === 'granted') {
-    const notificationsEnabled = localStorage.getItem('catchup-notifications') !== 'false';
-    if (notificationsEnabled) {
+async function showNotification(title, body) {
+  if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
+    return;
+  }
+  const notificationsEnabled = localStorage.getItem('catchup-notifications') !== 'false';
+  if (!notificationsEnabled) {
+    return;
+  }
+
+  try {
+    // Use service worker for notifications (required on Android)
+    if ('serviceWorker' in navigator) {
+      const reg = await navigator.serviceWorker.ready;
+      await reg.showNotification(title, {
+        body,
+        icon: '/favicon.svg',
+        tag: 'catchup-availability'
+      });
+    } else {
+      // Fall back to regular Notification API (desktop)
       new Notification(title, {
         body,
         icon: '/favicon.svg',
         tag: 'catchup-availability'
       });
     }
+  } catch (err) {
+    console.error('Notification error:', err);
   }
 }
 
