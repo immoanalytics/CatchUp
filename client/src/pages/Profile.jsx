@@ -178,13 +178,39 @@ export default function Profile() {
     localStorage.setItem('catchup-notifications', newValue ? 'true' : 'false');
   }
 
-  function sendTestNotification() {
-    if (typeof Notification !== 'undefined' && Notification.permission === 'granted') {
-      new Notification('CatchUp', {
-        body: t('testNotificationBody'),
-        icon: '/favicon.svg',
-        tag: 'catchup-test'
-      });
+  async function sendTestNotification() {
+    // Check if Notification API is available
+    if (typeof Notification === 'undefined') {
+      alert(t('notificationsNotSupported'));
+      return;
+    }
+
+    // Check permission
+    if (Notification.permission !== 'granted') {
+      alert(`${t('notificationBlocked')} (${Notification.permission})`);
+      return;
+    }
+
+    try {
+      // Try service worker notification first (better mobile support)
+      if ('serviceWorker' in navigator && navigator.serviceWorker.controller) {
+        const reg = await navigator.serviceWorker.ready;
+        await reg.showNotification('CatchUp', {
+          body: t('testNotificationBody'),
+          icon: '/favicon.svg',
+          tag: 'catchup-test'
+        });
+      } else {
+        // Fall back to regular Notification API
+        new Notification('CatchUp', {
+          body: t('testNotificationBody'),
+          icon: '/favicon.svg',
+          tag: 'catchup-test'
+        });
+      }
+    } catch (err) {
+      // Show error to user
+      alert(`${t('notificationError')}: ${err.message}`);
     }
   }
 
