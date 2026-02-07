@@ -16,18 +16,19 @@ async function showNotification(title, body) {
   try {
     // Use service worker for notifications (required on Android)
     if ('serviceWorker' in navigator) {
-      const reg = await navigator.serviceWorker.ready;
+      let reg = await navigator.serviceWorker.getRegistration();
+      if (!reg) {
+        reg = await navigator.serviceWorker.register('/sw.js');
+      }
+      if (!reg.active) {
+        await navigator.serviceWorker.ready;
+        reg = await navigator.serviceWorker.getRegistration();
+      }
       await reg.showNotification(title, {
         body,
         icon: '/favicon.svg',
-        tag: 'catchup-availability'
-      });
-    } else {
-      // Fall back to regular Notification API (desktop)
-      new Notification(title, {
-        body,
-        icon: '/favicon.svg',
-        tag: 'catchup-availability'
+        tag: 'catchup-availability',
+        vibrate: [200, 100, 200]
       });
     }
   } catch (err) {

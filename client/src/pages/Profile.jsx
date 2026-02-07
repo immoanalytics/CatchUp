@@ -198,14 +198,20 @@ export default function Profile() {
         let reg = await navigator.serviceWorker.getRegistration();
         if (!reg) {
           reg = await navigator.serviceWorker.register('/sw.js');
-          // Wait for it to be ready
+        }
+        // Wait for active service worker
+        if (!reg.active) {
           await navigator.serviceWorker.ready;
+          reg = await navigator.serviceWorker.getRegistration();
         }
         await reg.showNotification('CatchUp', {
           body: t('testNotificationBody'),
           icon: '/favicon.svg',
-          tag: 'catchup-test'
+          tag: 'catchup-test',
+          vibrate: [200, 100, 200]
         });
+        // Show success feedback
+        alert(t('testNotificationSent'));
       } else {
         alert(t('notificationsNotSupported'));
       }
