@@ -192,21 +192,22 @@ export default function Profile() {
     }
 
     try {
-      // Use service worker for notifications (required on Android)
+      // Always use service worker for notifications (required on Android/mobile)
       if ('serviceWorker' in navigator) {
-        const reg = await navigator.serviceWorker.ready;
+        // Register service worker if not already registered
+        let reg = await navigator.serviceWorker.getRegistration();
+        if (!reg) {
+          reg = await navigator.serviceWorker.register('/sw.js');
+          // Wait for it to be ready
+          await navigator.serviceWorker.ready;
+        }
         await reg.showNotification('CatchUp', {
           body: t('testNotificationBody'),
           icon: '/favicon.svg',
           tag: 'catchup-test'
         });
       } else {
-        // Fall back to regular Notification API (desktop)
-        new Notification('CatchUp', {
-          body: t('testNotificationBody'),
-          icon: '/favicon.svg',
-          tag: 'catchup-test'
-        });
+        alert(t('notificationsNotSupported'));
       }
     } catch (err) {
       // Show error to user
