@@ -98,6 +98,12 @@ function initializeDatabase() {
     db.exec("ALTER TABLE users ADD COLUMN photo TEXT");
   }
 
+  // Add watching column to friendships (default 1 = watching)
+  const friendshipColumns = db.prepare("PRAGMA table_info(friendships)").all().map(c => c.name);
+  if (!friendshipColumns.includes('watching')) {
+    db.exec("ALTER TABLE friendships ADD COLUMN watching INTEGER DEFAULT 1");
+  }
+
   return db;
 }
 

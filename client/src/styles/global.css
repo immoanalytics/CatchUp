@@ -435,6 +435,18 @@ input::placeholder {
   background: rgba(76, 175, 80, 0.1);
 }
 
+.availability-card.available.scheduled {
+  border-style: solid;
+  border-color: #22C55E;
+  background: linear-gradient(135deg, rgba(34, 197, 94, 0.25) 0%, rgba(22, 163, 74, 0.25) 100%);
+  box-shadow: 0 0 20px rgba(34, 197, 94, 0.2);
+}
+
+.availability-card.available.scheduled .plus-icon {
+  background: linear-gradient(135deg, #22C55E 0%, #16A34A 100%);
+  box-shadow: 0 4px 12px rgba(34, 197, 94, 0.4);
+}
+
 .availability-card .plus-icon {
   width: 48px;
   height: 48px;

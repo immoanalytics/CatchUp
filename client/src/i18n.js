@@ -46,9 +46,12 @@ const translations = {
     today: 'today',
     next: 'Next:',
     scheduled: 'Scheduled',
+    scheduledAvailability: 'Scheduled availability',
     all: 'All',
 
     // Circles
+    watchingOn: 'Notifications on - tap to mute',
+    watchingOff: 'Notifications muted - tap to enable',
     circles: 'Circles',
     yourCircles: 'Your Circles',
     tapToManageMembers: 'Tap a circle to manage members',
@@ -156,9 +159,12 @@ const translations = {
     today: 'azi',
     next: 'Urmatorul:',
     scheduled: 'Programat',
+    scheduledAvailability: 'Disponibilitate programata',
     all: 'Toate',
 
     // Circles
+    watchingOn: 'Notificari activate - apasa pentru a opri',
+    watchingOff: 'Notificari oprite - apasa pentru a activa',
     circles: 'Cercuri',
     yourCircles: 'Cercurile tale',
     tapToManageMembers: 'Apasa pe un cerc pentru a gestiona membrii',

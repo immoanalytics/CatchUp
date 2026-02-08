@@ -275,19 +275,30 @@ export default function Home() {
       </div>
 
       {/* Availability toggle card */}
-      <div
-        className={`availability-card ${effectivelyAvailable ? 'available' : ''}`}
-        onClick={handleAvailabilityCardClick}
-      >
-        <div className="plus-icon">
-          {effectivelyAvailable ? <Check size={24} color="white" /> : <Plus size={24} color="var(--text-muted)" />}
-        </div>
-        <h3>{effectivelyAvailable ? t('youreAvailable') : t('imAvailable')}</h3>
-        <p>{getAvailabilitySubtext()}</p>
-        {effectivelyAvailable && (
-          <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t('tapToTurnOff')}</p>
-        )}
-      </div>
+      {(() => {
+        const activeSchedule = getActiveSchedule(schedules);
+        const isScheduledAvailability = effectivelyAvailable && activeSchedule;
+        return (
+          <div
+            className={`availability-card ${effectivelyAvailable ? 'available' : ''} ${isScheduledAvailability ? 'scheduled' : ''}`}
+            onClick={handleAvailabilityCardClick}
+          >
+            <div className="plus-icon">
+              {effectivelyAvailable ? <Check size={24} color="white" /> : <Plus size={24} color="var(--text-muted)" />}
+            </div>
+            <h3>{effectivelyAvailable ? t('youreAvailable') : t('imAvailable')}</h3>
+            <p>{getAvailabilitySubtext()}</p>
+            {isScheduledAvailability && (
+              <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginTop: 4, display: 'flex', alignItems: 'center', gap: 4, justifyContent: 'center' }}>
+                <Calendar size={12} /> {t('scheduledAvailability')}
+              </p>
+            )}
+            {effectivelyAvailable && !isScheduledAvailability && (
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>{t('tapToTurnOff')}</p>
+            )}
+          </div>
+        );
+      })()}
 
       {/* Scheduled availability indicator */}
       {schedules.length > 0 && (() => {

@@ -114,7 +114,7 @@ io.on('connection', (socket) => {
 
     const userInfo = db.prepare('SELECT display_name, avatar_color, phone, whatsapp FROM users WHERE id = ?').get(userId);
 
-    // Notify all friends
+    // Notify friends who are watching (respectWatching = true for availability changes)
     notifyFriends(userId, 'availability:changed', {
       userId,
       displayName: userInfo.display_name,
@@ -124,7 +124,7 @@ io.on('connection', (socket) => {
       isAvailable: !!isAvailable,
       availableSince: now,
       availableUntil
-    });
+    }, true);
 
     // Confirm to the user
     socket.emit('availability:updated', { isAvailable: !!isAvailable, availableSince: now, availableUntil });
@@ -142,17 +142,27 @@ io.on('connection', (socket) => {
   });
 });
 
-function notifyFriends(userId, event, data) {
+function notifyFriends(userId, event, data, respectWatching = false) {
   const db = getDb();
-  const friends = db.prepare(`
-    SELECT friend_id FROM friendships WHERE user_id = ?
-    UNION
-    SELECT user_id FROM friendships WHERE friend_id = ?
-  `).all(userId, userId);
+
+  let friends;
+  if (respectWatching) {
+    // Only notify friends who are watching this user
+    friends = db.prepare(`
+      SELECT user_id as recipient_id FROM friendships
+      WHERE friend_id = ? AND watching = 1
+    `).all(userId);
+  } else {
+    // Notify all friends
+    friends = db.prepare(`
+      SELECT friend_id as recipient_id FROM friendships WHERE user_id = ?
+      UNION
+      SELECT user_id as recipient_id FROM friendships WHERE friend_id = ?
+    `).all(userId, userId);
+  }
 
   for (const friend of friends) {
-    const friendId = friend.friend_id || friend.user_id;
-    io.to(`user:${friendId}`).emit(event, data);
+    io.to(`user:${friend.recipient_id}`).emit(event, data);
   }
 }
 
@@ -182,6 +192,65 @@ setInterval(() => {
     });
   }
 }, 30000); // Check every 30 seconds
+
+// Schedule checker - auto-enable availability based on schedules
+setInterval(() => {
+  const db = getDb();
+  const now = new Date();
+  const dayNames = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
+  const currentDay = dayNames[now.getDay()];
+  const currentTime = now.toTimeString().slice(0, 5); // HH:MM format
+
+  // Find users with active schedules who are NOT currently available
+  const schedules = db.prepare(`
+    SELECT s.*, u.id as user_id, u.is_available, u.display_name, u.avatar_color, u.phone, u.whatsapp
+    FROM schedules s
+    JOIN users u ON u.id = s.user_id
+    WHERE s.enabled = 1 AND u.is_available = 0
+  `).all();
+
+  for (const schedule of schedules) {
+    const days = schedule.days.split(',');
+    if (!days.includes(currentDay)) continue;
+
+    // Check if current time is within schedule
+    if (currentTime >= schedule.start_time && currentTime < schedule.end_time) {
+      // Calculate when this schedule ends (for available_until)
+      const endParts = schedule.end_time.split(':');
+      const endDate = new Date();
+      endDate.setHours(parseInt(endParts[0]), parseInt(endParts[1]), 0, 0);
+      const availableUntil = endDate.toISOString();
+      const availableSince = now.toISOString();
+
+      // Set user as available
+      db.prepare('UPDATE users SET is_available = 1, available_since = ?, available_until = ? WHERE id = ?')
+        .run(availableSince, availableUntil, schedule.user_id);
+
+      // Notify friends who are watching (respectWatching = true)
+      notifyFriends(schedule.user_id, 'availability:changed', {
+        userId: schedule.user_id,
+        displayName: schedule.display_name,
+        avatarColor: schedule.avatar_color,
+        phone: schedule.phone,
+        whatsapp: schedule.whatsapp,
+        isAvailable: true,
+        availableSince,
+        availableUntil,
+        fromSchedule: true
+      }, true);
+
+      // Also notify the user themselves
+      io.to(`user:${schedule.user_id}`).emit('availability:updated', {
+        isAvailable: true,
+        availableSince,
+        availableUntil,
+        fromSchedule: true
+      });
+
+      console.log(`Schedule activated for user ${schedule.display_name}`);
+    }
+  }
+}, 60000); // Check every minute
 
 // Serve static files in production
 if (process.env.NODE_ENV === 'production') {

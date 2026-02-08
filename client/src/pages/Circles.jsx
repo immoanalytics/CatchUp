@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Plus, Heart, Briefcase, Users, ChevronRight, X, UserPlus, Trash2, BookUser, Upload } from 'lucide-react';
+import { Plus, Heart, Briefcase, Users, ChevronRight, X, UserPlus, Trash2, BookUser, Upload, Bell, BellOff } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -218,6 +218,21 @@ export default function Circles() {
     }
   }
 
+  async function toggleWatching(memberId, currentlyWatching) {
+    try {
+      await apiFetch(`/friends/${memberId}/watching`, {
+        method: 'PUT',
+        body: JSON.stringify({ watching: !currentlyWatching })
+      });
+      // Update local state
+      setMembers(prev => prev.map(m =>
+        m.id === memberId ? { ...m, watching: !currentlyWatching } : m
+      ));
+    } catch (err) {
+      console.error(err);
+    }
+  }
+
   function getInitials(name) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
   }
@@ -265,6 +280,13 @@ export default function Circles() {
                 </div>
               )}
             </div>
+            <button
+              onClick={() => toggleWatching(m.id, m.watching)}
+              style={{ color: m.watching ? 'var(--accent-green)' : 'var(--text-muted)', padding: 8 }}
+              title={m.watching ? t('watchingOn') : t('watchingOff')}
+            >
+              {m.watching ? <Bell size={18} /> : <BellOff size={18} />}
+            </button>
             <button onClick={() => removeMemberFromCircle(m.id)} style={{ color: 'var(--text-muted)', padding: 8 }}>
               <X size={18} />
             </button>

@@ -369,12 +369,28 @@ router.delete('/friends/:friendId/circles/:circleId', authenticateToken, (req, r
   res.json({ success: true });
 });
 
+// Toggle watching status for a friend
+router.put('/friends/:friendId/watching', authenticateToken, (req, res) => {
+  const db = getDb();
+  const { watching } = req.body;
+
+  const result = db.prepare('UPDATE friendships SET watching = ? WHERE user_id = ? AND friend_id = ?')
+    .run(watching ? 1 : 0, req.userId, req.params.friendId);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Friendship not found' });
+  }
+
+  res.json({ success: true, watching: !!watching });
+});
+
 // Get circle members
 router.get('/circles/:id/members', authenticateToken, (req, res) => {
   const db = getDb();
   const members = db.prepare(`
     SELECT u.id, u.display_name, u.phone, u.whatsapp, u.avatar_color,
-           u.is_available, u.available_since, u.available_until, u.photo
+           u.is_available, u.available_since, u.available_until, u.photo,
+           f.watching
     FROM friend_circles fc
     INNER JOIN friendships f ON f.id = fc.friendship_id
     INNER JOIN users u ON u.id = f.friend_id
@@ -391,7 +407,8 @@ router.get('/circles/:id/members', authenticateToken, (req, res) => {
     isAvailable: !!m.is_available,
     availableSince: m.available_since,
     availableUntil: m.available_until,
-    photo: m.photo
+    photo: m.photo,
+    watching: m.watching === null ? true : !!m.watching
   })));
 });
 
