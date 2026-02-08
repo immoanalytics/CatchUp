@@ -520,10 +520,14 @@ router.post('/pings', authenticateToken, (req, res) => {
 
   const db = getDb();
 
-  // Check they are friends
+  // Check they are mutual friends (both have each other as friends)
   const friendship = db.prepare('SELECT id FROM friendships WHERE user_id = ? AND friend_id = ?')
     .get(req.userId, toUserId);
-  if (!friendship) return res.status(404).json({ error: 'Not friends with this user' });
+  const reverseFriendship = db.prepare('SELECT id FROM friendships WHERE user_id = ? AND friend_id = ?')
+    .get(toUserId, req.userId);
+  if (!friendship || !reverseFriendship) {
+    return res.status(404).json({ error: 'Must be mutual friends to ping' });
+  }
 
   // Check for cooldown (5 minutes between pings to same person)
   const recentPing = db.prepare(`
@@ -597,15 +601,17 @@ router.put('/pings/:id', authenticateToken, (req, res) => {
   res.json({ success: true });
 });
 
-// Get all friends (not just available) for Home screen
+// Get all friends (not just available) for Home screen - only mutual friends
 router.get('/friends/all', authenticateToken, (req, res) => {
   const db = getDb();
+  // Only get mutual friends (both users have each other as friends)
   const friends = db.prepare(`
     SELECT u.id, u.display_name, u.phone, u.whatsapp, u.avatar_color, u.photo,
            u.is_available, u.available_since, u.available_until
-    FROM friendships f
-    INNER JOIN users u ON u.id = f.friend_id
-    WHERE f.user_id = ?
+    FROM friendships f1
+    INNER JOIN friendships f2 ON f1.friend_id = f2.user_id AND f1.user_id = f2.friend_id
+    INNER JOIN users u ON u.id = f1.friend_id
+    WHERE f1.user_id = ?
     ORDER BY u.is_available DESC, u.display_name
   `).all(req.userId);
 

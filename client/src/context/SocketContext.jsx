@@ -4,7 +4,7 @@ import { useAuth } from './AuthContext';
 
 const SocketContext = createContext(null);
 
-async function showNotification(title, body) {
+async function showNotification(title, body, tag = 'catchup-availability') {
   if (typeof Notification === 'undefined' || Notification.permission !== 'granted') {
     return;
   }
@@ -27,8 +27,9 @@ async function showNotification(title, body) {
       await reg.showNotification(title, {
         body,
         icon: '/favicon.svg',
-        tag: 'catchup-availability',
-        vibrate: [200, 100, 200]
+        tag,
+        vibrate: [200, 100, 200],
+        requireInteraction: tag === 'catchup-ping' // Keep ping notifications until user interacts
       });
     }
   } catch (err) {
@@ -67,6 +68,11 @@ export function SocketProvider({ children }) {
         const name = data.displayName || data.username || 'A friend';
         showNotification('CatchUp', `${name} is now available!`);
       }
+    });
+
+    s.on('ping:received', (data) => {
+      const name = data.fromDisplayName || 'Someone';
+      showNotification('CatchUp', `${name} wants to chat with you!`, 'catchup-ping');
     });
 
     setSocket(s);
