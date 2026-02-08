@@ -134,10 +134,15 @@ io.on('connection', (socket) => {
     const db = getDb();
     const { toUserId } = data;
 
-    // Check they are friends
+    // Check they are mutual friends (both have each other as friends)
     const friendship = db.prepare('SELECT id FROM friendships WHERE user_id = ? AND friend_id = ?')
       .get(userId, toUserId);
-    if (!friendship) return;
+    const reverseFriendship = db.prepare('SELECT id FROM friendships WHERE user_id = ? AND friend_id = ?')
+      .get(toUserId, userId);
+    if (!friendship || !reverseFriendship) {
+      socket.emit('ping:error', { error: 'Must be mutual friends to ping' });
+      return;
+    }
 
     // Check for cooldown (5 minutes between pings to same person)
     const recentPing = db.prepare(`
@@ -145,7 +150,10 @@ io.on('connection', (socket) => {
       WHERE from_user_id = ? AND to_user_id = ?
       AND created_at > datetime('now', '-5 minutes')
     `).get(userId, toUserId);
-    if (recentPing) return;
+    if (recentPing) {
+      socket.emit('ping:error', { error: 'Please wait before pinging again' });
+      return;
+    }
 
     const { v4: uuidv4 } = require('uuid');
     const id = uuidv4();

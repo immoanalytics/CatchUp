@@ -205,6 +205,10 @@ export default function Home() {
       setPingsSent(prev => ({ ...prev, [data.toUserId]: new Date().toISOString() }));
     }
 
+    function handlePingError(data) {
+      console.error('Ping error:', data.error);
+    }
+
     socket.on('availability:changed', handleAvailabilityChanged);
     socket.on('availability:updated', (data) => {
       setIsAvailable(data.isAvailable);
@@ -213,12 +217,14 @@ export default function Home() {
     });
     socket.on('ping:received', handlePingReceived);
     socket.on('ping:sent', handlePingSent);
+    socket.on('ping:error', handlePingError);
 
     return () => {
       socket.off('availability:changed', handleAvailabilityChanged);
       socket.off('availability:updated');
       socket.off('ping:received', handlePingReceived);
       socket.off('ping:sent', handlePingSent);
+      socket.off('ping:error', handlePingError);
     };
   }, [socket]);
 
