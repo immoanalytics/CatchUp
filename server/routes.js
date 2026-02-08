@@ -511,4 +511,135 @@ router.post('/users/lookup', authenticateToken, (req, res) => {
   })));
 });
 
+// ============ PINGS ============
+
+// Send a ping to a friend
+router.post('/pings', authenticateToken, (req, res) => {
+  const { toUserId } = req.body;
+  if (!toUserId) return res.status(400).json({ error: 'toUserId is required' });
+
+  const db = getDb();
+
+  // Check they are friends
+  const friendship = db.prepare('SELECT id FROM friendships WHERE user_id = ? AND friend_id = ?')
+    .get(req.userId, toUserId);
+  if (!friendship) return res.status(404).json({ error: 'Not friends with this user' });
+
+  // Check for cooldown (5 minutes between pings to same person)
+  const recentPing = db.prepare(`
+    SELECT id FROM pings
+    WHERE from_user_id = ? AND to_user_id = ?
+    AND created_at > datetime('now', '-5 minutes')
+  `).get(req.userId, toUserId);
+  if (recentPing) {
+    return res.status(429).json({ error: 'Please wait before pinging this friend again' });
+  }
+
+  const id = uuidv4();
+  db.prepare('INSERT INTO pings (id, from_user_id, to_user_id) VALUES (?, ?, ?)')
+    .run(id, req.userId, toUserId);
+
+  const sender = db.prepare('SELECT display_name, avatar_color, photo FROM users WHERE id = ?')
+    .get(req.userId);
+
+  res.json({
+    id,
+    toUserId,
+    createdAt: new Date().toISOString(),
+    sender: {
+      id: req.userId,
+      displayName: sender.display_name,
+      avatarColor: sender.avatar_color,
+      photo: sender.photo
+    }
+  });
+});
+
+// Get pending pings received (within last hour)
+router.get('/pings', authenticateToken, (req, res) => {
+  const db = getDb();
+  const pings = db.prepare(`
+    SELECT p.id, p.from_user_id, p.created_at, p.status,
+           u.display_name, u.avatar_color, u.photo
+    FROM pings p
+    INNER JOIN users u ON u.id = p.from_user_id
+    WHERE p.to_user_id = ? AND p.status = 'pending'
+    AND p.created_at > datetime('now', '-1 hour')
+    ORDER BY p.created_at DESC
+  `).all(req.userId);
+
+  res.json(pings.map(p => ({
+    id: p.id,
+    fromUserId: p.from_user_id,
+    fromDisplayName: p.display_name,
+    fromAvatarColor: p.avatar_color,
+    fromPhoto: p.photo,
+    createdAt: p.created_at,
+    status: p.status
+  })));
+});
+
+// Respond to a ping
+router.put('/pings/:id', authenticateToken, (req, res) => {
+  const { status } = req.body; // 'responded' or 'dismissed'
+  if (!status) return res.status(400).json({ error: 'status is required' });
+
+  const db = getDb();
+  const result = db.prepare(`
+    UPDATE pings SET status = ?, responded_at = datetime('now')
+    WHERE id = ? AND to_user_id = ?
+  `).run(status, req.params.id, req.userId);
+
+  if (result.changes === 0) {
+    return res.status(404).json({ error: 'Ping not found' });
+  }
+
+  res.json({ success: true });
+});
+
+// Get all friends (not just available) for Home screen
+router.get('/friends/all', authenticateToken, (req, res) => {
+  const db = getDb();
+  const friends = db.prepare(`
+    SELECT u.id, u.display_name, u.phone, u.whatsapp, u.avatar_color, u.photo,
+           u.is_available, u.available_since, u.available_until
+    FROM friendships f
+    INNER JOIN users u ON u.id = f.friend_id
+    WHERE f.user_id = ?
+    ORDER BY u.is_available DESC, u.display_name
+  `).all(req.userId);
+
+  // Also get last ping time for each friend (to show cooldown)
+  const result = friends.map(friend => {
+    const lastPing = db.prepare(`
+      SELECT created_at FROM pings
+      WHERE from_user_id = ? AND to_user_id = ?
+      ORDER BY created_at DESC LIMIT 1
+    `).get(req.userId, friend.id);
+
+    const circles = db.prepare(`
+      SELECT c.name, c.color FROM circles c
+      INNER JOIN friend_circles fc ON fc.circle_id = c.id
+      INNER JOIN friendships f ON f.id = fc.friendship_id
+      WHERE f.user_id = ? AND f.friend_id = ?
+    `).all(req.userId, friend.id);
+
+    return {
+      id: friend.id,
+      displayName: friend.display_name,
+      phone: friend.phone,
+      whatsapp: friend.whatsapp,
+      avatarColor: friend.avatar_color,
+      photo: friend.photo || null,
+      isAvailable: !!friend.is_available,
+      availableSince: friend.available_since,
+      availableUntil: friend.available_until,
+      lastPingAt: lastPing ? lastPing.created_at : null,
+      circles: circles.map(c => ({ name: c.name, color: c.color }))
+    };
+  });
+
+  res.json(result);
+});
+
 module.exports = router;

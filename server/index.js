@@ -130,6 +130,45 @@ io.on('connection', (socket) => {
     socket.emit('availability:updated', { isAvailable: !!isAvailable, availableSince: now, availableUntil });
   });
 
+  socket.on('ping:send', (data) => {
+    const db = getDb();
+    const { toUserId } = data;
+
+    // Check they are friends
+    const friendship = db.prepare('SELECT id FROM friendships WHERE user_id = ? AND friend_id = ?')
+      .get(userId, toUserId);
+    if (!friendship) return;
+
+    // Check for cooldown (5 minutes between pings to same person)
+    const recentPing = db.prepare(`
+      SELECT id FROM pings
+      WHERE from_user_id = ? AND to_user_id = ?
+      AND created_at > datetime('now', '-5 minutes')
+    `).get(userId, toUserId);
+    if (recentPing) return;
+
+    const { v4: uuidv4 } = require('uuid');
+    const id = uuidv4();
+    db.prepare('INSERT INTO pings (id, from_user_id, to_user_id) VALUES (?, ?, ?)')
+      .run(id, userId, toUserId);
+
+    const sender = db.prepare('SELECT display_name, avatar_color, photo FROM users WHERE id = ?')
+      .get(userId);
+
+    // Notify the recipient
+    io.to(`user:${toUserId}`).emit('ping:received', {
+      id,
+      fromUserId: userId,
+      fromDisplayName: sender.display_name,
+      fromAvatarColor: sender.avatar_color,
+      fromPhoto: sender.photo,
+      createdAt: new Date().toISOString()
+    });
+
+    // Confirm to sender
+    socket.emit('ping:sent', { id, toUserId });
+  });
+
   socket.on('disconnect', () => {
     const userSockets = connectedUsers.get(userId);
     if (userSockets) {

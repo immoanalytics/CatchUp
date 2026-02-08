@@ -712,3 +712,80 @@ input::placeholder {
   align-items: center;
   justify-content: center;
 }
+
+/* Offline status */
+.status-dot.offline {
+  background: var(--text-muted);
+}
+
+.contact-card.offline {
+  opacity: 0.85;
+}
+
+/* Ping button */
+.ping-button {
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  background: rgba(108, 99, 255, 0.15);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--accent-blue);
+  flex-shrink: 0;
+  position: relative;
+  transition: all 0.2s;
+}
+
+.ping-button:hover:not(.disabled) {
+  background: rgba(108, 99, 255, 0.25);
+  transform: scale(1.05);
+}
+
+.ping-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.ping-button .cooldown {
+  position: absolute;
+  bottom: -6px;
+  right: -4px;
+  font-size: 10px;
+  font-weight: 600;
+  background: var(--bg-secondary);
+  color: var(--text-muted);
+  padding: 2px 5px;
+  border-radius: var(--radius-full);
+  border: 1px solid var(--border-color);
+}
+
+/* Ping modal */
+.ping-modal {
+  text-align: center;
+}
+
+.ping-modal .avatar {
+  margin: 0 auto 16px;
+}
+
+/* Secondary button */
+.btn-secondary {
+  background: var(--bg-card);
+  color: var(--text-secondary);
+  border: 1px solid var(--border-color);
+  padding: 10px 20px;
+  border-radius: var(--radius-sm);
+  font-size: 15px;
+  font-weight: 500;
+  transition: all 0.2s;
+}
+
+.btn-secondary:hover {
+  background: var(--bg-card-hover);
+}
+
+/* Elevated background */
+.bg-elevated {
+  --bg-elevated: var(--bg-card);
+}

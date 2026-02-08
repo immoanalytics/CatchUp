@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback } from 'react';
-import { Phone, Plus, Check, Clock, Calendar, X } from 'lucide-react';
+import { Phone, Plus, Check, Clock, Calendar, X, Hand } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
 import { useLanguage } from '../context/LanguageContext';
@@ -23,6 +23,21 @@ function getTimeRemaining(isoString) {
   const hours = Math.floor(mins / 60);
   if (hours > 0) return `${hours}h ${mins % 60}m`;
   return `${mins} min${mins !== 1 ? 's' : ''}`;
+}
+
+function canPing(lastPingAt) {
+  if (!lastPingAt) return true;
+  const diff = Date.now() - new Date(lastPingAt).getTime();
+  return diff > 5 * 60 * 1000; // 5 minute cooldown
+}
+
+function getPingCooldown(lastPingAt) {
+  if (!lastPingAt) return null;
+  const diff = Date.now() - new Date(lastPingAt).getTime();
+  const remaining = 5 * 60 * 1000 - diff;
+  if (remaining <= 0) return null;
+  const mins = Math.ceil(remaining / 60000);
+  return `${mins}m`;
 }
 
 const DURATION_KEYS = [
@@ -100,14 +115,17 @@ export default function Home() {
   const [showDurationPicker, setShowDurationPicker] = useState(false);
   const [schedules, setSchedules] = useState([]);
   const [, setTick] = useState(0);
+  const [pendingPing, setPendingPing] = useState(null);
+  const [pingingSent, setPingsSent] = useState({});
 
   const fetchData = useCallback(async () => {
     try {
-      const [meRes, availRes, circlesRes, schedRes] = await Promise.all([
+      const [meRes, friendsRes, circlesRes, schedRes, pingsRes] = await Promise.all([
         apiFetch('/me'),
-        apiFetch('/available'),
+        apiFetch('/friends/all'),
         apiFetch('/circles'),
-        apiFetch('/schedules')
+        apiFetch('/schedules'),
+        apiFetch('/pings')
       ]);
       if (meRes.ok) {
         const me = await meRes.json();
@@ -115,14 +133,20 @@ export default function Home() {
         setAvailableSince(me.availableSince);
         setAvailableUntil(me.availableUntil || null);
       }
-      if (availRes.ok) {
-        setFriends(await availRes.json());
+      if (friendsRes.ok) {
+        setFriends(await friendsRes.json());
       }
       if (circlesRes.ok) {
         setCircles(await circlesRes.json());
       }
       if (schedRes.ok) {
         setSchedules(await schedRes.json());
+      }
+      if (pingsRes.ok) {
+        const pings = await pingsRes.json();
+        if (pings.length > 0) {
+          setPendingPing(pings[0]);
+        }
       }
     } catch (err) {
       console.error('Failed to fetch data:', err);
@@ -144,34 +168,41 @@ export default function Home() {
     if (!socket) return;
 
     function handleAvailabilityChanged(data) {
-      if (data.isAvailable) {
-        setFriends(prev => {
-          const existing = prev.find(f => f.id === data.userId);
-          if (existing) {
-            return prev.map(f => f.id === data.userId ? {
-              ...f,
-              displayName: data.displayName || f.displayName,
-              avatarColor: data.avatarColor || f.avatarColor,
-              phone: data.phone || f.phone,
-              whatsapp: data.whatsapp || f.whatsapp,
-              availableSince: data.availableSince,
-              availableUntil: data.availableUntil || null
-            } : f);
-          }
-          return [...prev, {
-            id: data.userId,
-            displayName: data.displayName,
-            avatarColor: data.avatarColor,
-            phone: data.phone,
-            whatsapp: data.whatsapp,
+      setFriends(prev => {
+        const existing = prev.find(f => f.id === data.userId);
+        if (existing) {
+          return prev.map(f => f.id === data.userId ? {
+            ...f,
+            displayName: data.displayName || f.displayName,
+            avatarColor: data.avatarColor || f.avatarColor,
+            phone: data.phone || f.phone,
+            whatsapp: data.whatsapp || f.whatsapp,
+            isAvailable: data.isAvailable,
             availableSince: data.availableSince,
-            availableUntil: data.availableUntil || null,
-            circles: []
-          }];
-        });
-      } else {
-        setFriends(prev => prev.filter(f => f.id !== data.userId));
-      }
+            availableUntil: data.availableUntil || null
+          } : f);
+        }
+        // Friend not in list yet - add them
+        return [...prev, {
+          id: data.userId,
+          displayName: data.displayName,
+          avatarColor: data.avatarColor,
+          phone: data.phone,
+          whatsapp: data.whatsapp,
+          isAvailable: data.isAvailable,
+          availableSince: data.availableSince,
+          availableUntil: data.availableUntil || null,
+          circles: []
+        }];
+      });
+    }
+
+    function handlePingReceived(data) {
+      setPendingPing(data);
+    }
+
+    function handlePingSent(data) {
+      setPingsSent(prev => ({ ...prev, [data.toUserId]: new Date().toISOString() }));
     }
 
     socket.on('availability:changed', handleAvailabilityChanged);
@@ -180,10 +211,14 @@ export default function Home() {
       setAvailableSince(data.availableSince);
       setAvailableUntil(data.availableUntil || null);
     });
+    socket.on('ping:received', handlePingReceived);
+    socket.on('ping:sent', handlePingSent);
 
     return () => {
       socket.off('availability:changed', handleAvailabilityChanged);
       socket.off('availability:updated');
+      socket.off('ping:received', handlePingReceived);
+      socket.off('ping:sent', handlePingSent);
     };
   }, [socket]);
 
@@ -218,18 +253,50 @@ export default function Home() {
     }
   }
 
-  // Filter out friends whose availability has expired client-side
-  const activeFriends = friends.filter(f => {
+  function sendPing(friendId) {
+    if (!socket) return;
+    socket.emit('ping:send', { toUserId: friendId });
+    setPingsSent(prev => ({ ...prev, [friendId]: new Date().toISOString() }));
+  }
+
+  async function respondToPing(pingId, goAvailable) {
+    try {
+      await apiFetch(`/pings/${pingId}`, {
+        method: 'PUT',
+        body: JSON.stringify({ status: goAvailable ? 'responded' : 'dismissed' })
+      });
+      setPendingPing(null);
+      if (goAvailable) {
+        setShowDurationPicker(true);
+      }
+    } catch (err) {
+      console.error('Failed to respond to ping:', err);
+    }
+  }
+
+  // Separate available and offline friends
+  const availableFriends = friends.filter(f => {
+    if (!f.isAvailable) return false;
     if (!f.availableUntil) return true;
     return new Date(f.availableUntil).getTime() > Date.now();
+  });
+
+  const offlineFriends = friends.filter(f => {
+    if (!f.isAvailable) return true;
+    if (!f.availableUntil) return false;
+    return new Date(f.availableUntil).getTime() <= Date.now();
   });
 
   // Check if own availability has expired client-side
   const effectivelyAvailable = isAvailable && (!availableUntil || new Date(availableUntil).getTime() > Date.now());
 
-  const filteredFriends = filter === null
-    ? activeFriends
-    : activeFriends.filter(f => f.circles && f.circles.some(c => c.name === filter));
+  const filteredAvailableFriends = filter === null
+    ? availableFriends
+    : availableFriends.filter(f => f.circles && f.circles.some(c => c.name === filter));
+
+  const filteredOfflineFriends = filter === null
+    ? offlineFriends
+    : offlineFriends.filter(f => f.circles && f.circles.some(c => c.name === filter));
 
   function getInitials(name) {
     return name.split(' ').map(n => n[0]).join('').toUpperCase().slice(0, 2);
@@ -340,17 +407,17 @@ export default function Home() {
       {/* Available friends section */}
       <div className="section-header">
         <h2 style={{ fontSize: 18, fontWeight: 600 }}>{t('availableNow')}</h2>
-        <span className="badge">{filteredFriends.length}</span>
+        <span className="badge">{filteredAvailableFriends.length}</span>
       </div>
 
-      {filteredFriends.length === 0 && (
+      {filteredAvailableFriends.length === 0 && (
         <div style={{ textAlign: 'center', padding: '40px 20px', color: 'var(--text-muted)' }}>
           <p style={{ marginBottom: 8 }}>{t('noFriendsAvailable')}</p>
           <p style={{ fontSize: 13 }}>{t('friendsWillShowUp')}</p>
         </div>
       )}
 
-      {filteredFriends.map(friend => (
+      {filteredAvailableFriends.map(friend => (
         <div key={friend.id} className="contact-card">
           {friend.photo ? (
             <img src={friend.photo} alt={friend.displayName} className="avatar" style={{ objectFit: 'cover' }} />
@@ -378,6 +445,56 @@ export default function Home() {
           </button>
         </div>
       ))}
+
+      {/* Offline friends section */}
+      {filteredOfflineFriends.length > 0 && (
+        <>
+          <div className="section-header" style={{ marginTop: 24 }}>
+            <h2 style={{ fontSize: 18, fontWeight: 600 }}>{t('friends')}</h2>
+            <span className="badge" style={{ background: 'var(--bg-elevated)' }}>{filteredOfflineFriends.length}</span>
+          </div>
+
+          {filteredOfflineFriends.map(friend => {
+            const lastPing = pingingSent[friend.id] || friend.lastPingAt;
+            const canPingNow = canPing(lastPing);
+            const cooldown = getPingCooldown(lastPing);
+            return (
+              <div key={friend.id} className="contact-card offline">
+                {friend.photo ? (
+                  <img src={friend.photo} alt={friend.displayName} className="avatar" style={{ objectFit: 'cover', opacity: 0.7 }} />
+                ) : (
+                  <div className="avatar" style={{ backgroundColor: friend.avatarColor || '#6C63FF', opacity: 0.7 }}>
+                    {getInitials(friend.displayName)}
+                  </div>
+                )}
+                <div className="contact-info">
+                  <div className="contact-name" style={{ color: 'var(--text-secondary)' }}>{friend.displayName}</div>
+                  {friend.circles && friend.circles.length > 0 && (
+                    <div className="contact-circles">
+                      {friend.circles.map(c => (
+                        <span key={c.name} className="chip" style={{ opacity: 0.7 }}>{c.name}</span>
+                      ))}
+                    </div>
+                  )}
+                  <div className="contact-status" style={{ color: 'var(--text-muted)' }}>
+                    <span className="status-dot offline" />
+                    {t('offline')}
+                  </div>
+                </div>
+                <button
+                  className={`ping-button ${!canPingNow ? 'disabled' : ''}`}
+                  onClick={() => canPingNow && sendPing(friend.id)}
+                  disabled={!canPingNow}
+                  title={canPingNow ? t('pingFriend') : `${t('waitToPing')} ${cooldown}`}
+                >
+                  <Hand size={18} />
+                  {cooldown && <span className="cooldown">{cooldown}</span>}
+                </button>
+              </div>
+            );
+          })}
+        </>
+      )}
 
       {callContact && (
         <CallSheet contact={callContact} onClose={() => setCallContact(null)} />
@@ -414,6 +531,65 @@ export default function Home() {
                   </div>
                 </button>
               ))}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Ping received modal */}
+      {pendingPing && (
+        <div className="modal-overlay" onClick={() => setPendingPing(null)}>
+          <div className="modal-content ping-modal" onClick={e => e.stopPropagation()}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 20 }}>
+              <h2 className="modal-title" style={{ marginBottom: 0 }}>{t('pingReceived')}</h2>
+              <button onClick={() => setPendingPing(null)} style={{ color: 'var(--text-muted)' }}>
+                <X size={24} />
+              </button>
+            </div>
+            <div style={{ textAlign: 'center', padding: '20px 0' }}>
+              {pendingPing.fromPhoto ? (
+                <img
+                  src={pendingPing.fromPhoto}
+                  alt={pendingPing.fromDisplayName}
+                  className="avatar"
+                  style={{ width: 64, height: 64, objectFit: 'cover', margin: '0 auto 16px' }}
+                />
+              ) : (
+                <div
+                  className="avatar"
+                  style={{
+                    width: 64,
+                    height: 64,
+                    fontSize: 24,
+                    backgroundColor: pendingPing.fromAvatarColor || '#6C63FF',
+                    margin: '0 auto 16px'
+                  }}
+                >
+                  {getInitials(pendingPing.fromDisplayName)}
+                </div>
+              )}
+              <p style={{ fontSize: 18, fontWeight: 600, marginBottom: 8 }}>
+                {pendingPing.fromDisplayName}
+              </p>
+              <p style={{ color: 'var(--text-muted)', marginBottom: 24 }}>
+                {t('wantsToChat')}
+              </p>
+              <div style={{ display: 'flex', gap: 12, justifyContent: 'center' }}>
+                <button
+                  className="btn-secondary"
+                  onClick={() => respondToPing(pendingPing.id, false)}
+                  style={{ padding: '12px 24px' }}
+                >
+                  {t('notNow')}
+                </button>
+                <button
+                  className="btn-primary"
+                  onClick={() => respondToPing(pendingPing.id, true)}
+                  style={{ padding: '12px 24px' }}
+                >
+                  {t('goAvailable')}
+                </button>
+              </div>
             </div>
           </div>
         </div>

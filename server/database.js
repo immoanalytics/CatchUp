@@ -87,6 +87,17 @@ function initializeDatabase() {
       FOREIGN KEY (friendship_id) REFERENCES friendships(id) ON DELETE CASCADE,
       FOREIGN KEY (circle_id) REFERENCES circles(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS pings (
+      id TEXT PRIMARY KEY,
+      from_user_id TEXT NOT NULL,
+      to_user_id TEXT NOT NULL,
+      status TEXT DEFAULT 'pending',
+      created_at TEXT DEFAULT (datetime('now')),
+      responded_at TEXT,
+      FOREIGN KEY (from_user_id) REFERENCES users(id) ON DELETE CASCADE,
+      FOREIGN KEY (to_user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   // Migrations: add columns that may be missing on older databases

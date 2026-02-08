@@ -111,6 +111,16 @@ const translations = {
 
     // Nav
     home: 'Home',
+
+    // Ping
+    friends: 'Friends',
+    offline: 'Offline',
+    pingFriend: 'Ping friend',
+    waitToPing: 'Wait to ping again:',
+    pingReceived: 'Someone wants to chat!',
+    wantsToChat: 'wants to catch up with you',
+    goAvailable: 'Go Available',
+    notNow: 'Not now',
   },
   ro: {
     // App
@@ -224,6 +234,16 @@ const translations = {
 
     // Nav
     home: 'Acasa',
+
+    // Ping
+    friends: 'Prieteni',
+    offline: 'Offline',
+    pingFriend: 'Trimite ping',
+    waitToPing: 'Asteapta pentru a trimite din nou:',
+    pingReceived: 'Cineva vrea sa vorbeasca!',
+    wantsToChat: 'vrea sa te contacteze',
+    goAvailable: 'Devino disponibil',
+    notNow: 'Nu acum',
   }
 };
 
