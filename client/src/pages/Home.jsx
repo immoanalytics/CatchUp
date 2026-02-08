@@ -382,7 +382,7 @@ export default function Home() {
                 <X size={24} />
               </button>
             </div>
-            <div style={{ display: 'flex', flexDirection: 'column', gap: 10 }}>
+            <div style={{ display: 'flex', flexDirection: 'column', gap: 10, paddingBottom: 16 }}>
               {DURATION_KEYS.map(opt => (
                 <button
                   key={opt.key}

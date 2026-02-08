@@ -432,7 +432,7 @@ export default function Profile() {
                   onChange={e => setEditWhatsapp(e.target.value)}
                 />
               </div>
-              <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8, paddingTop: 14, paddingBottom: 14, fontSize: 16, fontWeight: 600 }}>
+              <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8, marginBottom: 16, paddingTop: 14, paddingBottom: 14, fontSize: 16, fontWeight: 600 }}>
                 {t('saveChanges')}
               </button>
             </form>
@@ -479,7 +479,7 @@ export default function Profile() {
                   />
                 </div>
               </div>
-              <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8 }}>
+              <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8, marginBottom: 16 }}>
                 {t('addSchedule')}
               </button>
             </form>
