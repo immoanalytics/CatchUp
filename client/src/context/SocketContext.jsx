@@ -37,6 +37,71 @@ async function ensureServiceWorker() {
   }
 }
 
+// Subscribe to push notifications
+async function subscribeToPush(token) {
+  try {
+    const reg = await ensureServiceWorker();
+    if (!reg) {
+      console.log('No service worker for push');
+      return;
+    }
+
+    // Check if already subscribed
+    let subscription = await reg.pushManager.getSubscription();
+
+    if (!subscription) {
+      // Get VAPID public key from server
+      const vapidRes = await fetch('/api/push/vapid-key');
+      if (!vapidRes.ok) {
+        console.error('Failed to get VAPID key');
+        return;
+      }
+      const { publicKey } = await vapidRes.json();
+
+      // Convert VAPID key to Uint8Array
+      const applicationServerKey = urlBase64ToUint8Array(publicKey);
+
+      // Subscribe to push
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey
+      });
+
+      console.log('Push subscription created');
+    }
+
+    // Send subscription to server
+    const res = await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ subscription })
+    });
+
+    if (res.ok) {
+      console.log('Push subscription saved to server');
+    } else {
+      console.error('Failed to save push subscription');
+    }
+  } catch (err) {
+    console.error('Push subscription error:', err);
+  }
+}
+
+// Helper to convert base64 to Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
 async function showNotification(title, body, tag = 'catchup-notification') {
   // Check if notifications are supported and permitted
   if (typeof Notification === 'undefined') {
@@ -106,6 +171,11 @@ export function SocketProvider({ children }) {
 
     s.on('connect', () => {
       console.log('Socket connected');
+
+      // Subscribe to push notifications when connected
+      if (Notification.permission === 'granted') {
+        subscribeToPush(token);
+      }
     });
 
     s.on('connect_error', (err) => {

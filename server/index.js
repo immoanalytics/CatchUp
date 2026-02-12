@@ -9,6 +9,7 @@ const jwt = require('jsonwebtoken');
 const { initializeDatabase, getDb } = require('./database');
 const { JWT_SECRET } = require('./auth');
 const routes = require('./routes');
+const { sendPingNotification, sendAvailabilityNotification } = require('./push');
 
 const app = express();
 const PORT = process.env.PORT || 3001;
@@ -163,7 +164,7 @@ io.on('connection', (socket) => {
     const sender = db.prepare('SELECT display_name, avatar_color, photo FROM users WHERE id = ?')
       .get(userId);
 
-    // Notify the recipient
+    // Notify the recipient via socket
     io.to(`user:${toUserId}`).emit('ping:received', {
       id,
       fromUserId: userId,
@@ -172,6 +173,12 @@ io.on('connection', (socket) => {
       fromPhoto: sender.photo,
       createdAt: new Date().toISOString()
     });
+
+    // Also send push notification (for when app is closed)
+    sendPingNotification(
+      { id: userId, displayName: sender.display_name },
+      toUserId
+    ).catch(err => console.error('Push notification error:', err));
 
     // Confirm to sender
     socket.emit('ping:sent', { id, toUserId });

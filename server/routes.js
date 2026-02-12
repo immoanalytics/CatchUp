@@ -3,6 +3,7 @@ const bcrypt = require('bcryptjs');
 const { v4: uuidv4 } = require('uuid');
 const { getDb } = require('./database');
 const { generateToken, authenticateToken } = require('./auth');
+const { VAPID_PUBLIC_KEY } = require('./push');
 
 const router = express.Router();
 
@@ -646,6 +647,49 @@ router.get('/friends/all', authenticateToken, (req, res) => {
   });
 
   res.json(result);
+});
+
+// ============ PUSH NOTIFICATIONS ============
+
+// Get VAPID public key
+router.get('/push/vapid-key', (req, res) => {
+  res.json({ publicKey: VAPID_PUBLIC_KEY });
+});
+
+// Subscribe to push notifications
+router.post('/push/subscribe', authenticateToken, (req, res) => {
+  const { subscription } = req.body;
+  if (!subscription || !subscription.endpoint || !subscription.keys) {
+    return res.status(400).json({ error: 'Invalid subscription' });
+  }
+
+  const db = getDb();
+  const id = uuidv4();
+
+  // Remove existing subscription with same endpoint (in case user re-subscribes)
+  db.prepare('DELETE FROM push_subscriptions WHERE endpoint = ?').run(subscription.endpoint);
+
+  // Add new subscription
+  db.prepare(`
+    INSERT INTO push_subscriptions (id, user_id, endpoint, p256dh, auth)
+    VALUES (?, ?, ?, ?, ?)
+  `).run(id, req.userId, subscription.endpoint, subscription.keys.p256dh, subscription.keys.auth);
+
+  res.json({ success: true });
+});
+
+// Unsubscribe from push notifications
+router.post('/push/unsubscribe', authenticateToken, (req, res) => {
+  const { endpoint } = req.body;
+  if (!endpoint) {
+    return res.status(400).json({ error: 'Endpoint is required' });
+  }
+
+  const db = getDb();
+  db.prepare('DELETE FROM push_subscriptions WHERE user_id = ? AND endpoint = ?')
+    .run(req.userId, endpoint);
+
+  res.json({ success: true });
 });
 
 module.exports = router;

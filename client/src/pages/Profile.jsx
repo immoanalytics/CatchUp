@@ -3,6 +3,62 @@ import { Phone, MessageCircle, Bell, ChevronRight, Plus, Camera, LogOut, X } fro
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
+// Helper to convert base64 to Uint8Array
+function urlBase64ToUint8Array(base64String) {
+  const padding = '='.repeat((4 - (base64String.length % 4)) % 4);
+  const base64 = (base64String + padding).replace(/-/g, '+').replace(/_/g, '/');
+  const rawData = window.atob(base64);
+  const outputArray = new Uint8Array(rawData.length);
+  for (let i = 0; i < rawData.length; ++i) {
+    outputArray[i] = rawData.charCodeAt(i);
+  }
+  return outputArray;
+}
+
+// Subscribe to push notifications
+async function subscribeToPush(token) {
+  try {
+    if (!('serviceWorker' in navigator)) return;
+
+    let reg = await navigator.serviceWorker.getRegistration();
+    if (!reg) {
+      reg = await navigator.serviceWorker.register('/sw.js');
+      await navigator.serviceWorker.ready;
+      reg = await navigator.serviceWorker.getRegistration();
+    }
+
+    // Check if already subscribed
+    let subscription = await reg.pushManager.getSubscription();
+
+    if (!subscription) {
+      // Get VAPID public key from server
+      const vapidRes = await fetch('/api/push/vapid-key');
+      if (!vapidRes.ok) return;
+      const { publicKey } = await vapidRes.json();
+
+      // Subscribe to push
+      subscription = await reg.pushManager.subscribe({
+        userVisibleOnly: true,
+        applicationServerKey: urlBase64ToUint8Array(publicKey)
+      });
+    }
+
+    // Send subscription to server
+    await fetch('/api/push/subscribe', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${token}`
+      },
+      body: JSON.stringify({ subscription })
+    });
+
+    console.log('Push subscription saved');
+  } catch (err) {
+    console.error('Push subscription error:', err);
+  }
+}
+
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function Profile() {
@@ -171,6 +227,12 @@ export default function Profile() {
       if (typeof Notification !== 'undefined' && Notification.permission === 'denied') {
         alert(t('notificationBlocked'));
         return;
+      }
+
+      // Subscribe to push notifications
+      const token = localStorage.getItem('catchup-token');
+      if (token) {
+        subscribeToPush(token);
       }
     }
     const newValue = !pushEnabled;
