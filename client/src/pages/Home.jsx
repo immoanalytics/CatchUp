@@ -282,6 +282,8 @@ export default function Home() {
 
   // Separate available and offline friends
   const availableFriends = friends.filter(f => {
+    // Only show friends who are in at least one circle
+    if (!f.circles || f.circles.length === 0) return false;
     if (!f.isAvailable) return false;
     if (!f.availableUntil) return true;
     return new Date(f.availableUntil).getTime() > Date.now();
