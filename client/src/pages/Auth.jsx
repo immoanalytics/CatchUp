@@ -17,6 +17,7 @@ export default function Auth() {
   const [whatsapp, setWhatsapp] = useState('');
   const [email, setEmail] = useState('');
   const [resetCode, setResetCode] = useState('');
+  const [generatedCode, setGeneratedCode] = useState(''); // Code returned from server (dev mode)
   const [error, setError] = useState('');
   const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
@@ -44,7 +45,10 @@ export default function Auth() {
           if (!res.ok) {
             throw new Error(data.error || 'Failed to send reset code');
           }
-          setSuccess(t('codeSent'));
+          // Store code if returned (dev mode - no email server)
+          if (data.code) {
+            setGeneratedCode(data.code);
+          }
           setResetStep(2);
         } else {
           // Verify code and reset password
@@ -206,20 +210,43 @@ export default function Auth() {
 
           {mode === 'forgot' && resetStep === 2 && (
             <>
-              <div style={{
-                background: 'var(--bg-secondary)',
-                padding: 12,
-                borderRadius: 'var(--radius-md)',
-                marginBottom: 16,
-                display: 'flex',
-                alignItems: 'center',
-                gap: 8
-              }}>
-                <Check size={18} style={{ color: 'var(--accent-green)' }} />
-                <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
-                  {t('codeSentTo')} <strong>{email}</strong>
-                </span>
-              </div>
+              {generatedCode ? (
+                <div style={{
+                  background: 'var(--accent-blue)',
+                  padding: 16,
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 16,
+                  textAlign: 'center'
+                }}>
+                  <p style={{ fontSize: 12, color: 'rgba(255,255,255,0.8)', marginBottom: 8 }}>
+                    {t('yourResetCode')}
+                  </p>
+                  <p style={{
+                    fontSize: 32,
+                    fontWeight: 'bold',
+                    letterSpacing: '8px',
+                    color: '#fff',
+                    fontFamily: 'monospace'
+                  }}>
+                    {generatedCode}
+                  </p>
+                </div>
+              ) : (
+                <div style={{
+                  background: 'var(--bg-secondary)',
+                  padding: 12,
+                  borderRadius: 'var(--radius-md)',
+                  marginBottom: 16,
+                  display: 'flex',
+                  alignItems: 'center',
+                  gap: 8
+                }}>
+                  <Check size={18} style={{ color: 'var(--accent-green)' }} />
+                  <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+                    {t('codeSentTo')} <strong>{email}</strong>
+                  </span>
+                </div>
+              )}
               <div className="form-group">
                 <input
                   type="text"

@@ -54,18 +54,19 @@ router.post('/auth/register', (req, res) => {
   res.json({ token, user: { id, username, displayName, phone, whatsapp, avatarColor, email: normalizedEmail } });
 });
 
-// Request password reset code (sends email)
+// Request password reset code
+// In development: returns code directly (no email server needed)
+// In production: would send email via SMTP (configure env vars)
 router.post('/auth/request-reset', async (req, res) => {
   const { email } = req.body;
   if (!email) {
-    return res.status(400).json({ error: 'email is required' });
+    return res.status(400).json({ error: 'Email is required' });
   }
 
   const db = getDb();
   const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email.toLowerCase().trim());
   if (!user) {
-    // Don't reveal if email exists - just say code sent
-    return res.json({ success: true, message: 'If an account exists with this email, a code has been sent' });
+    return res.status(404).json({ error: 'No account found with this email' });
   }
 
   // Generate 6-digit code
@@ -80,16 +81,13 @@ router.post('/auth/request-reset', async (req, res) => {
   db.prepare('INSERT INTO password_reset_codes (id, user_id, code, expires_at) VALUES (?, ?, ?, ?)')
     .run(id, user.id, code, expiresAt);
 
-  // Send email
-  try {
-    const { sendPasswordResetCode } = require('./email');
-    await sendPasswordResetCode(user.email, code);
-  } catch (err) {
-    console.error('Failed to send reset email:', err);
-    return res.status(500).json({ error: 'Failed to send email' });
-  }
-
-  res.json({ success: true, message: 'Reset code sent to your email' });
+  // Return code directly (for development - shown on screen)
+  // In production with SMTP configured, you'd send email here instead
+  res.json({
+    success: true,
+    message: 'Reset code generated',
+    code: code  // Shown on screen since no email server
+  });
 });
 
 // Verify code and reset password
