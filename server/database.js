@@ -108,6 +108,16 @@ function initializeDatabase() {
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
+
+    CREATE TABLE IF NOT EXISTS password_reset_codes (
+      id TEXT PRIMARY KEY,
+      user_id TEXT NOT NULL,
+      code TEXT NOT NULL,
+      expires_at TEXT NOT NULL,
+      used INTEGER DEFAULT 0,
+      created_at TEXT DEFAULT (datetime('now')),
+      FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
+    );
   `);
 
   // Migrations: add columns that may be missing on older databases
@@ -117,6 +127,9 @@ function initializeDatabase() {
   }
   if (!userColumns.includes('photo')) {
     db.exec("ALTER TABLE users ADD COLUMN photo TEXT");
+  }
+  if (!userColumns.includes('email')) {
+    db.exec("ALTER TABLE users ADD COLUMN email TEXT");
   }
 
   // Add watching column to friendships (default 1 = watching)

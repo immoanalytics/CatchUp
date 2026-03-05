@@ -58,11 +58,11 @@ export function AuthProvider({ children }) {
     return data.user;
   }
 
-  async function register(username, displayName, password, phone, whatsapp) {
+  async function register(username, displayName, password, phone, whatsapp, email) {
     const res = await fetch(`${API_BASE}/auth/register`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username, displayName, password, phone, whatsapp })
+      body: JSON.stringify({ username, displayName, password, phone, whatsapp, email })
     });
     const data = await res.json();
     if (!res.ok) throw new Error(data.error);

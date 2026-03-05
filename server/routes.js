@@ -10,7 +10,7 @@ const router = express.Router();
 // ============ AUTH ============
 
 router.post('/auth/register', (req, res) => {
-  const { username, displayName, password, phone, whatsapp } = req.body;
+  const { username, displayName, password, phone, whatsapp, email } = req.body;
   if (!username || !password || !displayName) {
     return res.status(400).json({ error: 'username, displayName, and password are required' });
   }
@@ -21,15 +21,23 @@ router.post('/auth/register', (req, res) => {
     return res.status(409).json({ error: 'Username already taken' });
   }
 
+  const normalizedEmail = email ? email.toLowerCase().trim() : null;
+  if (normalizedEmail) {
+    const emailExists = db.prepare('SELECT id FROM users WHERE email = ?').get(normalizedEmail);
+    if (emailExists) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+  }
+
   const colors = ['#6C63FF', '#4CAF50', '#FF9800', '#E91E63', '#00BCD4', '#9C27B0'];
   const avatarColor = colors[Math.floor(Math.random() * colors.length)];
   const id = uuidv4();
   const passwordHash = bcrypt.hashSync(password, 10);
 
   db.prepare(`
-    INSERT INTO users (id, username, display_name, password_hash, phone, whatsapp, avatar_color)
-    VALUES (?, ?, ?, ?, ?, ?, ?)
-  `).run(id, username, displayName, passwordHash, phone || null, whatsapp || null, avatarColor);
+    INSERT INTO users (id, username, display_name, password_hash, phone, whatsapp, avatar_color, email)
+    VALUES (?, ?, ?, ?, ?, ?, ?, ?)
+  `).run(id, username, displayName, passwordHash, phone || null, whatsapp || null, avatarColor, normalizedEmail);
 
   // Create default circles
   const defaultCircles = [
@@ -43,14 +51,52 @@ router.post('/auth/register', (req, res) => {
   }
 
   const token = generateToken(id);
-  res.json({ token, user: { id, username, displayName, phone, whatsapp, avatarColor } });
+  res.json({ token, user: { id, username, displayName, phone, whatsapp, avatarColor, email: normalizedEmail } });
 });
 
-// Password reset using phone verification
+// Request password reset code (sends email)
+router.post('/auth/request-reset', async (req, res) => {
+  const { email } = req.body;
+  if (!email) {
+    return res.status(400).json({ error: 'email is required' });
+  }
+
+  const db = getDb();
+  const user = db.prepare('SELECT id, email FROM users WHERE email = ?').get(email.toLowerCase().trim());
+  if (!user) {
+    // Don't reveal if email exists - just say code sent
+    return res.json({ success: true, message: 'If an account exists with this email, a code has been sent' });
+  }
+
+  // Generate 6-digit code
+  const code = Math.floor(100000 + Math.random() * 900000).toString();
+  const expiresAt = new Date(Date.now() + 15 * 60 * 1000).toISOString(); // 15 minutes
+
+  // Invalidate previous codes for this user
+  db.prepare('UPDATE password_reset_codes SET used = 1 WHERE user_id = ? AND used = 0').run(user.id);
+
+  // Insert new code
+  const id = require('uuid').v4();
+  db.prepare('INSERT INTO password_reset_codes (id, user_id, code, expires_at) VALUES (?, ?, ?, ?)')
+    .run(id, user.id, code, expiresAt);
+
+  // Send email
+  try {
+    const { sendPasswordResetCode } = require('./email');
+    await sendPasswordResetCode(user.email, code);
+  } catch (err) {
+    console.error('Failed to send reset email:', err);
+    return res.status(500).json({ error: 'Failed to send email' });
+  }
+
+  res.json({ success: true, message: 'Reset code sent to your email' });
+});
+
+// Verify code and reset password
 router.post('/auth/reset-password', (req, res) => {
-  const { username, phone, newPassword } = req.body;
-  if (!username || !phone || !newPassword) {
-    return res.status(400).json({ error: 'username, phone, and newPassword are required' });
+  const { email, code, newPassword } = req.body;
+  if (!email || !code || !newPassword) {
+    return res.status(400).json({ error: 'email, code, and newPassword are required' });
   }
 
   if (newPassword.length < 4) {
@@ -58,25 +104,25 @@ router.post('/auth/reset-password', (req, res) => {
   }
 
   const db = getDb();
-  const user = db.prepare('SELECT id, phone FROM users WHERE username = ?').get(username);
+  const user = db.prepare('SELECT id FROM users WHERE email = ?').get(email.toLowerCase().trim());
   if (!user) {
-    return res.status(404).json({ error: 'User not found' });
+    return res.status(400).json({ error: 'Invalid code' });
   }
 
-  if (!user.phone) {
-    return res.status(400).json({ error: 'No phone number on file for this account' });
+  // Check for valid code
+  const resetCode = db.prepare(`
+    SELECT id FROM password_reset_codes
+    WHERE user_id = ? AND code = ? AND used = 0 AND expires_at > datetime('now')
+  `).get(user.id, code);
+
+  if (!resetCode) {
+    return res.status(400).json({ error: 'Invalid or expired code' });
   }
 
-  // Normalize phone numbers for comparison (strip non-digits)
-  const normalize = p => p.replace(/\D/g, '');
-  const inputPhone = normalize(phone);
-  const userPhone = normalize(user.phone);
+  // Mark code as used
+  db.prepare('UPDATE password_reset_codes SET used = 1 WHERE id = ?').run(resetCode.id);
 
-  // Match if one ends with the other (handles country codes)
-  if (!inputPhone || !userPhone || !(inputPhone.endsWith(userPhone) || userPhone.endsWith(inputPhone))) {
-    return res.status(403).json({ error: 'Phone number does not match' });
-  }
-
+  // Update password
   const passwordHash = bcrypt.hashSync(newPassword, 10);
   db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
 
@@ -124,6 +170,7 @@ router.get('/me', authenticateToken, (req, res) => {
     displayName: user.display_name,
     phone: user.phone,
     whatsapp: user.whatsapp,
+    email: user.email,
     avatarColor: user.avatar_color,
     photo: user.photo || null,
     isAvailable: !!user.is_available,
@@ -134,14 +181,23 @@ router.get('/me', authenticateToken, (req, res) => {
 });
 
 router.put('/me', authenticateToken, (req, res) => {
-  const { displayName, phone, whatsapp } = req.body;
+  const { displayName, phone, whatsapp, email } = req.body;
   const db = getDb();
+
+  const normalizedEmail = email ? email.toLowerCase().trim() : null;
+  if (normalizedEmail) {
+    const emailExists = db.prepare('SELECT id FROM users WHERE email = ? AND id != ?').get(normalizedEmail, req.userId);
+    if (emailExists) {
+      return res.status(409).json({ error: 'Email already registered' });
+    }
+  }
 
   db.prepare(`
     UPDATE users SET display_name = COALESCE(?, display_name),
-    phone = COALESCE(?, phone), whatsapp = COALESCE(?, whatsapp)
+    phone = COALESCE(?, phone), whatsapp = COALESCE(?, whatsapp),
+    email = COALESCE(?, email)
     WHERE id = ?
-  `).run(displayName || null, phone || null, whatsapp || null, req.userId);
+  `).run(displayName || null, phone || null, whatsapp || null, normalizedEmail, req.userId);
 
   const user = db.prepare('SELECT * FROM users WHERE id = ?').get(req.userId);
   res.json({
@@ -150,6 +206,7 @@ router.put('/me', authenticateToken, (req, res) => {
     displayName: user.display_name,
     phone: user.phone,
     whatsapp: user.whatsapp,
+    email: user.email,
     avatarColor: user.avatar_color,
     photo: user.photo || null
   });
