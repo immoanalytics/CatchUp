@@ -1,11 +1,12 @@
 const nodemailer = require('nodemailer');
 
 // Create transporter based on environment
-// In development: logs to console
+// In development: uses Ethereal test service (emails viewable at ethereal.email)
 // In production: uses SMTP settings from environment variables
 let transporter;
+let testAccount;
 
-function getTransporter() {
+async function getTransporter() {
   if (transporter) return transporter;
 
   if (process.env.SMTP_HOST) {
@@ -20,24 +21,29 @@ function getTransporter() {
       },
     });
   } else {
-    // Development: use ethereal test account or console logging
-    transporter = {
-      sendMail: async (options) => {
-        console.log('\n========== EMAIL (dev mode) ==========');
-        console.log('To:', options.to);
-        console.log('Subject:', options.subject);
-        console.log('Text:', options.text);
-        console.log('=======================================\n');
-        return { messageId: 'dev-' + Date.now() };
+    // Development: use Ethereal test service
+    testAccount = await nodemailer.createTestAccount();
+    transporter = nodemailer.createTransport({
+      host: 'smtp.ethereal.email',
+      port: 587,
+      secure: false,
+      auth: {
+        user: testAccount.user,
+        pass: testAccount.pass,
       },
-    };
+    });
+    console.log('\n=== Ethereal Test Email Account ===');
+    console.log('View emails at: https://ethereal.email/login');
+    console.log('Email:', testAccount.user);
+    console.log('Password:', testAccount.pass);
+    console.log('====================================\n');
   }
 
   return transporter;
 }
 
 async function sendPasswordResetCode(email, code) {
-  const transport = getTransporter();
+  const transport = await getTransporter();
 
   const mailOptions = {
     from: process.env.SMTP_FROM || 'CatchUp <noreply@catchup.app>',
@@ -57,7 +63,19 @@ async function sendPasswordResetCode(email, code) {
     `,
   };
 
-  return transport.sendMail(mailOptions);
+  const info = await transport.sendMail(mailOptions);
+
+  // In dev mode, log the URL to view the email
+  if (!process.env.SMTP_HOST) {
+    const previewUrl = nodemailer.getTestMessageUrl(info);
+    console.log('\n=== Password Reset Email Sent ===');
+    console.log('To:', email);
+    console.log('Code:', code);
+    console.log('Preview URL:', previewUrl);
+    console.log('=================================\n');
+  }
+
+  return info;
 }
 
 module.exports = { sendPasswordResetCode };
