@@ -121,6 +121,15 @@ const translations = {
     wantsToChat: 'wants to catch up with you',
     goAvailable: 'Go Available',
     notNow: 'Not now',
+
+    // Password Reset
+    forgotPassword: 'Forgot password?',
+    resetYourPassword: 'Reset your password',
+    enterPhoneToVerify: 'Enter the phone number you registered with',
+    newPassword: 'New password',
+    resetPassword: 'Reset Password',
+    passwordResetSuccess: 'Password reset! You can now sign in.',
+    backToLogin: 'Back to login',
   },
   ro: {
     // App
@@ -244,6 +253,15 @@ const translations = {
     wantsToChat: 'vrea sa te contacteze',
     goAvailable: 'Devino disponibil',
     notNow: 'Nu acum',
+
+    // Password Reset
+    forgotPassword: 'Ai uitat parola?',
+    resetYourPassword: 'Reseteaza parola',
+    enterPhoneToVerify: 'Introdu numarul de telefon cu care te-ai inregistrat',
+    newPassword: 'Parola noua',
+    resetPassword: 'Reseteaza Parola',
+    passwordResetSuccess: 'Parola resetata! Te poti conecta acum.',
+    backToLogin: 'Inapoi la conectare',
   }
 };
 

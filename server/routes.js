@@ -46,6 +46,43 @@ router.post('/auth/register', (req, res) => {
   res.json({ token, user: { id, username, displayName, phone, whatsapp, avatarColor } });
 });
 
+// Password reset using phone verification
+router.post('/auth/reset-password', (req, res) => {
+  const { username, phone, newPassword } = req.body;
+  if (!username || !phone || !newPassword) {
+    return res.status(400).json({ error: 'username, phone, and newPassword are required' });
+  }
+
+  if (newPassword.length < 4) {
+    return res.status(400).json({ error: 'Password must be at least 4 characters' });
+  }
+
+  const db = getDb();
+  const user = db.prepare('SELECT id, phone FROM users WHERE username = ?').get(username);
+  if (!user) {
+    return res.status(404).json({ error: 'User not found' });
+  }
+
+  if (!user.phone) {
+    return res.status(400).json({ error: 'No phone number on file for this account' });
+  }
+
+  // Normalize phone numbers for comparison (strip non-digits)
+  const normalize = p => p.replace(/\D/g, '');
+  const inputPhone = normalize(phone);
+  const userPhone = normalize(user.phone);
+
+  // Match if one ends with the other (handles country codes)
+  if (!inputPhone || !userPhone || !(inputPhone.endsWith(userPhone) || userPhone.endsWith(inputPhone))) {
+    return res.status(403).json({ error: 'Phone number does not match' });
+  }
+
+  const passwordHash = bcrypt.hashSync(newPassword, 10);
+  db.prepare('UPDATE users SET password_hash = ? WHERE id = ?').run(passwordHash, user.id);
+
+  res.json({ success: true });
+});
+
 router.post('/auth/login', (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {

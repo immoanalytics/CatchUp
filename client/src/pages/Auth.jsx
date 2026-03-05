@@ -1,31 +1,50 @@
 import { useState } from 'react';
-import { Eye, EyeOff, Copy } from 'lucide-react';
+import { Eye, EyeOff, Copy, ArrowLeft } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
 export default function Auth() {
   const { login, register } = useAuth();
   const { t } = useLanguage();
-  const [isRegister, setIsRegister] = useState(false);
+  const [mode, setMode] = useState('login'); // 'login', 'register', 'forgot'
   const [username, setUsername] = useState('');
   const [displayName, setDisplayName] = useState('');
   const [password, setPassword] = useState('');
+  const [newPassword, setNewPassword] = useState('');
   const [showPassword, setShowPassword] = useState(false);
   const [phone, setPhone] = useState('');
   const [whatsapp, setWhatsapp] = useState('');
   const [error, setError] = useState('');
+  const [success, setSuccess] = useState('');
   const [submitting, setSubmitting] = useState(false);
 
   async function handleSubmit(e) {
     e.preventDefault();
     setError('');
+    setSuccess('');
     setSubmitting(true);
 
     try {
-      if (isRegister) {
+      if (mode === 'register') {
         await register(username, displayName || username, password, phone, whatsapp);
-      } else {
+      } else if (mode === 'login') {
         await login(username, password);
+      } else if (mode === 'forgot') {
+        const res = await fetch('/api/auth/reset-password', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ username, phone, newPassword })
+        });
+        const data = await res.json();
+        if (!res.ok) {
+          throw new Error(data.error || 'Failed to reset password');
+        }
+        setSuccess(t('passwordResetSuccess'));
+        setTimeout(() => {
+          setMode('login');
+          setSuccess('');
+          setNewPassword('');
+        }, 2000);
       }
     } catch (err) {
       setError(err.message);
@@ -34,12 +53,37 @@ export default function Auth() {
     }
   }
 
+  function switchMode(newMode) {
+    setMode(newMode);
+    setError('');
+    setSuccess('');
+  }
+
   return (
     <div className="auth-page">
       <div className="auth-card">
+        {mode === 'forgot' && (
+          <button
+            onClick={() => switchMode('login')}
+            style={{
+              display: 'flex',
+              alignItems: 'center',
+              gap: 4,
+              color: 'var(--text-muted)',
+              marginBottom: 16,
+              fontSize: 14
+            }}
+          >
+            <ArrowLeft size={18} />
+            {t('backToLogin')}
+          </button>
+        )}
+
         <h1 className="auth-title">{t('appName')}</h1>
         <p className="auth-subtitle">
-          {isRegister ? t('createYourAccount') : t('welcomeBack')}
+          {mode === 'register' ? t('createYourAccount') :
+           mode === 'forgot' ? t('resetYourPassword') :
+           t('welcomeBack')}
         </p>
 
         <form onSubmit={handleSubmit}>
@@ -53,7 +97,7 @@ export default function Auth() {
             />
           </div>
 
-          {isRegister && (
+          {mode === 'register' && (
             <>
               <div className="form-group">
                 <input
@@ -99,12 +143,27 @@ export default function Auth() {
             </>
           )}
 
+          {mode === 'forgot' && (
+            <div className="form-group">
+              <input
+                type="tel"
+                placeholder={t('phoneNumber')}
+                value={phone}
+                onChange={e => setPhone(e.target.value)}
+                required
+              />
+              <p style={{ fontSize: 12, color: 'var(--text-muted)', marginTop: 4 }}>
+                {t('enterPhoneToVerify')}
+              </p>
+            </div>
+          )}
+
           <div className="form-group" style={{ position: 'relative' }}>
             <input
               type={showPassword ? 'text' : 'password'}
-              placeholder={t('password')}
-              value={password}
-              onChange={e => setPassword(e.target.value)}
+              placeholder={mode === 'forgot' ? t('newPassword') : t('password')}
+              value={mode === 'forgot' ? newPassword : password}
+              onChange={e => mode === 'forgot' ? setNewPassword(e.target.value) : setPassword(e.target.value)}
               required
               style={{ paddingRight: 44 }}
             />
@@ -118,6 +177,7 @@ export default function Auth() {
           </div>
 
           {error && <p className="error-text">{error}</p>}
+          {success && <p style={{ color: 'var(--accent-green)', fontSize: 13, marginTop: 8 }}>{success}</p>}
 
           <button
             type="submit"
@@ -125,16 +185,37 @@ export default function Auth() {
             disabled={submitting}
             style={{ marginTop: 8 }}
           >
-            {submitting ? t('pleaseWait') : isRegister ? t('createAccount') : t('signIn')}
+            {submitting ? t('pleaseWait') :
+             mode === 'register' ? t('createAccount') :
+             mode === 'forgot' ? t('resetPassword') :
+             t('signIn')}
           </button>
         </form>
 
-        <div className="auth-toggle">
-          {isRegister ? t('alreadyHaveAccount') : t('dontHaveAccount')}
-          <button onClick={() => { setIsRegister(!isRegister); setError(''); }}>
-            {isRegister ? t('signIn') : t('signUp')}
+        {mode === 'login' && (
+          <button
+            onClick={() => switchMode('forgot')}
+            style={{
+              display: 'block',
+              width: '100%',
+              textAlign: 'center',
+              marginTop: 12,
+              color: 'var(--accent-blue)',
+              fontSize: 14
+            }}
+          >
+            {t('forgotPassword')}
           </button>
-        </div>
+        )}
+
+        {mode !== 'forgot' && (
+          <div className="auth-toggle">
+            {mode === 'register' ? t('alreadyHaveAccount') : t('dontHaveAccount')}
+            <button onClick={() => switchMode(mode === 'register' ? 'login' : 'register')}>
+              {mode === 'register' ? t('signIn') : t('signUp')}
+            </button>
+          </div>
+        )}
       </div>
     </div>
   );
