@@ -789,3 +789,91 @@ input::placeholder {
 .bg-elevated {
   --bg-elevated: var(--bg-card);
 }
+
+/* ============ Motion & feedback polish ============ */
+
+@keyframes modal-fade-in {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+@keyframes modal-slide-up {
+  from { transform: translateY(32px); opacity: 0; }
+  to { transform: translateY(0); opacity: 1; }
+}
+
+@keyframes available-pulse {
+  0%, 100% { box-shadow: 0 0 0 0 rgba(76, 175, 80, 0.25); }
+  50% { box-shadow: 0 0 18px 4px rgba(76, 175, 80, 0.15); }
+}
+
+.modal-overlay {
+  animation: modal-fade-in 0.18s ease-out;
+}
+
+.modal-content {
+  animation: modal-slide-up 0.22s ease-out;
+}
+
+.availability-card.available {
+  animation: available-pulse 3s ease-in-out infinite;
+}
+
+/* Press feedback on tappable elements */
+.call-button:active,
+.ping-button:active:not(.disabled),
+.call-option:active,
+.filter-chip:active,
+.circle-row:active,
+.btn:active,
+.btn-primary:active,
+.btn-secondary:active,
+.availability-card:active {
+  transform: scale(0.97);
+}
+
+.call-button,
+.call-option,
+.filter-chip,
+.circle-row,
+.btn,
+.btn-primary,
+.btn-secondary {
+  transition: transform 0.1s ease, background 0.2s, border-color 0.2s;
+}
+
+/* Keyboard focus visibility (accessibility) */
+button:focus-visible,
+input:focus-visible {
+  outline: 2px solid var(--accent-blue);
+  outline-offset: 2px;
+}
+
+/* Toast notifications */
+.toast {
+  position: fixed;
+  bottom: 84px;
+  left: 50%;
+  transform: translateX(-50%);
+  background: var(--bg-card);
+  border: 1px solid var(--border-color);
+  color: var(--text-primary);
+  font-size: 14px;
+  font-weight: 500;
+  padding: 10px 18px;
+  border-radius: var(--radius-full);
+  box-shadow: var(--shadow);
+  z-index: 300;
+  animation: modal-fade-in 0.2s ease-out;
+  max-width: 90%;
+  text-align: center;
+}
+
+/* Respect users who prefer less motion */
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}

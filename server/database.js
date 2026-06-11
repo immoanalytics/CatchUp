@@ -115,6 +115,7 @@ function initializeDatabase() {
       code TEXT NOT NULL,
       expires_at TEXT NOT NULL,
       used INTEGER DEFAULT 0,
+      attempts INTEGER DEFAULT 0,
       created_at TEXT DEFAULT (datetime('now')),
       FOREIGN KEY (user_id) REFERENCES users(id) ON DELETE CASCADE
     );
@@ -136,6 +137,12 @@ function initializeDatabase() {
   const friendshipColumns = db.prepare("PRAGMA table_info(friendships)").all().map(c => c.name);
   if (!friendshipColumns.includes('watching')) {
     db.exec("ALTER TABLE friendships ADD COLUMN watching INTEGER DEFAULT 1");
+  }
+
+  // Add attempts column to password_reset_codes (limits code guessing)
+  const resetColumns = db.prepare("PRAGMA table_info(password_reset_codes)").all().map(c => c.name);
+  if (!resetColumns.includes('attempts')) {
+    db.exec("ALTER TABLE password_reset_codes ADD COLUMN attempts INTEGER DEFAULT 0");
   }
 
   return db;

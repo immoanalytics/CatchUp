@@ -121,6 +121,8 @@ const translations = {
     wantsToChat: 'wants to catch up with you',
     goAvailable: 'Go Available',
     notNow: 'Not now',
+    pingSentToast: 'Ping sent! 👋',
+    pingFailedToast: "Couldn't send ping. Try again later.",
 
     // Password Reset
     forgotPassword: 'Forgot password?',
@@ -261,6 +263,8 @@ const translations = {
     wantsToChat: 'vrea sa te contacteze',
     goAvailable: 'Devino disponibil',
     notNow: 'Nu acum',
+    pingSentToast: 'Ping trimis! 👋',
+    pingFailedToast: 'Nu s-a putut trimite ping. Incearca mai tarziu.',
 
     // Password Reset
     forgotPassword: 'Ai uitat parola?',

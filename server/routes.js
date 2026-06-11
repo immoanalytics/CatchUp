@@ -7,12 +7,52 @@ const { VAPID_PUBLIC_KEY } = require('./push');
 
 const router = express.Router();
 
+// Simple in-memory rate limiter for sensitive endpoints (per IP + route)
+const rateBuckets = new Map(); // key -> { count, resetAt }
+function rateLimit(maxRequests, windowMs) {
+  return (req, res, next) => {
+    const key = `${req.ip}:${req.path}`;
+    const now = Date.now();
+    let bucket = rateBuckets.get(key);
+    if (!bucket || now > bucket.resetAt) {
+      bucket = { count: 0, resetAt: now + windowMs };
+      rateBuckets.set(key, bucket);
+    }
+    bucket.count++;
+    if (bucket.count > maxRequests) {
+      return res.status(429).json({ error: 'Too many attempts. Please try again later.' });
+    }
+    next();
+  };
+}
+// Clean expired buckets periodically so the map doesn't grow forever
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, bucket] of rateBuckets) {
+    if (now > bucket.resetAt) rateBuckets.delete(key);
+  }
+}, 10 * 60 * 1000).unref();
+
+const FIFTEEN_MIN = 15 * 60 * 1000;
+
 // ============ AUTH ============
 
-router.post('/auth/register', (req, res) => {
-  const { username, displayName, password, phone, whatsapp, email } = req.body;
+router.post('/auth/register', rateLimit(10, FIFTEEN_MIN), (req, res) => {
+  let { username, displayName, password, phone, whatsapp, email } = req.body;
+  username = typeof username === 'string' ? username.trim() : '';
+  displayName = typeof displayName === 'string' ? displayName.trim() : '';
+
   if (!username || !password || !displayName) {
     return res.status(400).json({ error: 'username, displayName, and password are required' });
+  }
+  if (!/^[a-zA-Z0-9._-]{3,30}$/.test(username)) {
+    return res.status(400).json({ error: 'Username must be 3-30 characters (letters, numbers, . _ -)' });
+  }
+  if (displayName.length > 50) {
+    return res.status(400).json({ error: 'Display name too long (max 50 characters)' });
+  }
+  if (password.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
   const db = getDb();
@@ -55,11 +95,11 @@ router.post('/auth/register', (req, res) => {
 });
 
 // Request password reset code
-// In development: returns code directly (no email server needed)
-// In production: would send email via SMTP (configure env vars)
-router.post('/auth/request-reset', async (req, res) => {
+// No email server configured: the code is returned and shown on screen.
+// Rate limiting + attempt limits on verification keep this from being abusable.
+router.post('/auth/request-reset', rateLimit(5, FIFTEEN_MIN), async (req, res) => {
   const { email } = req.body;
-  if (!email) {
+  if (!email || typeof email !== 'string') {
     return res.status(400).json({ error: 'Email is required' });
   }
 
@@ -91,14 +131,14 @@ router.post('/auth/request-reset', async (req, res) => {
 });
 
 // Verify code and reset password
-router.post('/auth/reset-password', (req, res) => {
+router.post('/auth/reset-password', rateLimit(10, FIFTEEN_MIN), (req, res) => {
   const { email, code, newPassword } = req.body;
   if (!email || !code || !newPassword) {
     return res.status(400).json({ error: 'email, code, and newPassword are required' });
   }
 
-  if (newPassword.length < 4) {
-    return res.status(400).json({ error: 'Password must be at least 4 characters' });
+  if (newPassword.length < 6) {
+    return res.status(400).json({ error: 'Password must be at least 6 characters' });
   }
 
   const db = getDb();
@@ -107,18 +147,30 @@ router.post('/auth/reset-password', (req, res) => {
     return res.status(400).json({ error: 'Invalid code' });
   }
 
-  // Check for valid code
-  const resetCode = db.prepare(`
-    SELECT id FROM password_reset_codes
-    WHERE user_id = ? AND code = ? AND used = 0 AND expires_at > datetime('now')
-  `).get(user.id, code);
+  // Get the active (unused, unexpired) code for this user
+  const activeCode = db.prepare(`
+    SELECT id, code, attempts FROM password_reset_codes
+    WHERE user_id = ? AND used = 0 AND expires_at > datetime('now')
+    ORDER BY created_at DESC LIMIT 1
+  `).get(user.id);
 
-  if (!resetCode) {
+  if (!activeCode) {
+    return res.status(400).json({ error: 'Invalid or expired code' });
+  }
+
+  // Wrong guess: count it, invalidate after 5 attempts (prevents brute-forcing the 6-digit code)
+  if (activeCode.code !== String(code)) {
+    const attempts = (activeCode.attempts || 0) + 1;
+    if (attempts >= 5) {
+      db.prepare('UPDATE password_reset_codes SET used = 1 WHERE id = ?').run(activeCode.id);
+      return res.status(400).json({ error: 'Too many wrong attempts. Request a new code.' });
+    }
+    db.prepare('UPDATE password_reset_codes SET attempts = ? WHERE id = ?').run(attempts, activeCode.id);
     return res.status(400).json({ error: 'Invalid or expired code' });
   }
 
   // Mark code as used
-  db.prepare('UPDATE password_reset_codes SET used = 1 WHERE id = ?').run(resetCode.id);
+  db.prepare('UPDATE password_reset_codes SET used = 1 WHERE id = ?').run(activeCode.id);
 
   // Update password
   const passwordHash = bcrypt.hashSync(newPassword, 10);
@@ -127,7 +179,7 @@ router.post('/auth/reset-password', (req, res) => {
   res.json({ success: true });
 });
 
-router.post('/auth/login', (req, res) => {
+router.post('/auth/login', rateLimit(15, FIFTEEN_MIN), (req, res) => {
   const { username, password } = req.body;
   if (!username || !password) {
     return res.status(400).json({ error: 'username and password are required' });
@@ -226,8 +278,15 @@ router.put('/me/photo', authenticateToken, (req, res) => {
 
 // ============ AVAILABILITY ============
 
+// Clamp duration to 1 minute - 24 hours; returns null if invalid/absent
+function sanitizeDuration(duration) {
+  const mins = Number(duration);
+  if (!Number.isFinite(mins) || mins < 1) return null;
+  return Math.min(mins, 1440);
+}
+
 router.post('/availability/toggle', authenticateToken, (req, res) => {
-  const { duration } = req.body; // duration in minutes (optional)
+  const duration = sanitizeDuration(req.body.duration); // minutes (optional)
   const db = getDb();
   const user = db.prepare('SELECT is_available FROM users WHERE id = ?').get(req.userId);
   const newStatus = user.is_available ? 0 : 1;
@@ -245,7 +304,8 @@ router.post('/availability/toggle', authenticateToken, (req, res) => {
 });
 
 router.post('/availability/set', authenticateToken, (req, res) => {
-  const { isAvailable, duration } = req.body; // duration in minutes (optional)
+  const { isAvailable } = req.body;
+  const duration = sanitizeDuration(req.body.duration); // minutes (optional)
   const db = getDb();
   const now = isAvailable ? new Date().toISOString() : null;
 

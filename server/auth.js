@@ -2,6 +2,10 @@ const jwt = require('jsonwebtoken');
 
 const JWT_SECRET = process.env.JWT_SECRET || 'catchup-dev-secret-change-in-production';
 
+if (process.env.NODE_ENV === 'production' && !process.env.JWT_SECRET) {
+  console.warn('SECURITY WARNING: JWT_SECRET is not set! Using the insecure default. Set the JWT_SECRET environment variable.');
+}
+
 function generateToken(userId) {
   return jwt.sign({ userId }, JWT_SECRET, { expiresIn: '30d' });
 }

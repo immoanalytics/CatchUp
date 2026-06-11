@@ -22,6 +22,14 @@ initializeDatabase();
 app.use(cors());
 app.use(express.json({ limit: '5mb' }));
 
+// Basic security headers
+app.use((req, res, next) => {
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  res.setHeader('X-Frame-Options', 'DENY');
+  res.setHeader('Referrer-Policy', 'no-referrer');
+  next();
+});
+
 // Health check for Railway (respond to both GET and HEAD)
 app.use('/health', (req, res) => res.status(200).send('ok'));
 
@@ -105,9 +113,11 @@ io.on('connection', (socket) => {
     const isAvailable = data && data.isAvailable;
     const now = isAvailable ? new Date().toISOString() : null;
 
+    // Clamp duration to 1 minute - 24 hours
     let availableUntil = null;
-    if (isAvailable && data.duration) {
-      availableUntil = new Date(Date.now() + data.duration * 60000).toISOString();
+    const duration = Number(data && data.duration);
+    if (isAvailable && Number.isFinite(duration) && duration >= 1) {
+      availableUntil = new Date(Date.now() + Math.min(duration, 1440) * 60000).toISOString();
     }
 
     db.prepare('UPDATE users SET is_available = ?, available_since = ?, available_until = ? WHERE id = ?')
@@ -133,7 +143,8 @@ io.on('connection', (socket) => {
 
   socket.on('ping:send', (data) => {
     const db = getDb();
-    const { toUserId } = data;
+    const { toUserId } = data || {};
+    if (!toUserId || typeof toUserId !== 'string') return;
 
     // Check they are mutual friends (both have each other as friends)
     const friendship = db.prepare('SELECT id FROM friendships WHERE user_id = ? AND friend_id = ?')

@@ -95,30 +95,43 @@ npm start              # Serve everything from Express (NODE_ENV=production)
 | Variable | Default | Description |
 |----------|---------|-------------|
 | `PORT` | `3001` | Server port |
-| `JWT_SECRET` | dev fallback | **Must be set in production** |
+| `JWT_SECRET` | dev fallback | **Must be set in production** (warning logged otherwise) |
+| `VAPID_PUBLIC_KEY` / `VAPID_PRIVATE_KEY` | dev fallback | Web Push keys — generate with `npx web-push generate-vapid-keys`. **Set in production** |
+| `VAPID_EMAIL` | `mailto:admin@catchup.app` | Web Push contact email |
+| `DATABASE_PATH` | `./catchup.db` | SQLite file location |
+| `SSL_KEY_PATH` / `SSL_CERT_PATH` | unset | Enable built-in HTTPS (otherwise use a reverse proxy) |
 
 ## Database Schema
 
-SQLite tables (auto-created on first run):
+SQLite tables (auto-created on first run; column migrations run automatically):
 
-- **users** — id, username, display_name, password_hash, phone, whatsapp, avatar_color, is_available, available_since
+- **users** — id, username, display_name, password_hash, phone, whatsapp, email, avatar_color, photo, is_available, available_since, available_until
 - **circles** — id, user_id, name, icon, color (user's friend groups)
-- **friendships** — id, user_id, friend_id, status (bidirectional friend links)
+- **friendships** — id, user_id, friend_id, status, watching (bidirectional friend links; watching controls availability notifications)
 - **friend_circles** — friendship_id, circle_id (which circles a friend belongs to)
 - **schedules** — id, user_id, days, start_time, end_time, enabled (recurring availability)
+- **pings** — id, from_user_id, to_user_id, status, created_at, responded_at (nudge a friend to become available)
+- **push_subscriptions** — id, user_id, endpoint, p256dh, auth (Web Push subscriptions)
+- **password_reset_codes** — id, user_id, code, expires_at, used, attempts (6-digit reset codes, 15-min expiry, max 5 guesses)
 
 ## API Endpoints
 
 All API routes are prefixed with `/api`.
 
+Auth endpoints are rate-limited per IP (in-memory).
+
 ### Auth
 - `POST /api/auth/register` — Create account (auto-creates default circles)
-- `POST /api/auth/login` — Sign in, returns JWT token
+- `POST /api/auth/login` — Sign in, returns JWT token (30-day expiry)
+- `POST /api/auth/request-reset` — Generate password reset code for an email (code returned in response; no email server configured)
+- `POST /api/auth/reset-password` — Verify code + set new password (max 5 wrong guesses per code)
 
 ### User (requires auth)
 - `GET /api/me` — Get current user profile + schedules
-- `PUT /api/me` — Update display name, phone, whatsapp
-- `GET /api/users/search?q=` — Search users by username/display name
+- `PUT /api/me` — Update display name, phone, whatsapp, email
+- `PUT /api/me/photo` — Upload profile photo (data URL, max 2MB)
+- `GET /api/users/search?q=` — Search users by username/display name/phone
+- `POST /api/users/lookup` — Match phone numbers against registered users (contact import)
 
 ### Availability (requires auth)
 - `POST /api/availability/toggle` — Toggle current user's availability
@@ -134,10 +147,12 @@ All API routes are prefixed with `/api`.
 
 ### Friends (requires auth)
 - `GET /api/friends` — List all friends with circle assignments
+- `GET /api/friends/all` — List mutual friends (available + offline) with circles and last ping time
 - `POST /api/friends/add` — Add friend by username (+ optional circle assignment)
 - `DELETE /api/friends/:friendId` — Remove friend
 - `POST /api/friends/:friendId/circles` — Add friend to circle
 - `DELETE /api/friends/:friendId/circles/:circleId` — Remove friend from circle
+- `PUT /api/friends/:friendId/watching` — Toggle availability notifications for a friend
 
 ### Schedules (requires auth)
 - `GET /api/schedules` — List user's recurring schedules
@@ -145,25 +160,43 @@ All API routes are prefixed with `/api`.
 - `PUT /api/schedules/:id` — Update schedule
 - `DELETE /api/schedules/:id` — Delete schedule
 
+### Pings (requires auth)
+- `POST /api/pings` — Ping a mutual friend (5-min cooldown per friend)
+- `GET /api/pings` — Pending pings received in the last hour
+- `PUT /api/pings/:id` — Respond to a ping (`responded` / `dismissed`)
+
+### Push (Web Push)
+- `GET /api/push/vapid-key` — Public VAPID key for subscribing
+- `POST /api/push/subscribe` — Save a push subscription (requires auth)
+- `POST /api/push/unsubscribe` — Remove a push subscription (requires auth)
+
 ## WebSocket Events
 
 Socket.IO authenticates via `auth.token` in handshake.
 
 ### Client → Server
-- `availability:toggle` — Toggle availability (also broadcasts to friends)
+- `availability:set` — Set availability (with optional duration; broadcasts to watching friends)
+- `ping:send` — Ping a mutual friend (5-min cooldown)
 
 ### Server → Client
 - `availability:changed` — A friend's availability changed (includes user info)
 - `availability:updated` — Confirmation of own availability change
+- `ping:received` — A friend pinged you
+- `ping:sent` — Confirmation your ping was delivered
+- `ping:error` — Ping failed (cooldown / not mutual friends)
 - `friend:online` — A friend connected
 - `friend:offline` — A friend disconnected
+
+### Server background jobs
+- Every 30s: expire `available_until` timers and broadcast the change
+- Every 60s: auto-enable availability from recurring schedules (notifies watching friends)
 
 ## Frontend Architecture
 
 ### Screens (3 tabs)
-1. **Home** — "I'm Available" toggle card, filter chips by circle, list of available friends with call buttons
-2. **Circles** — List of circles with member counts, drill into circle to manage members, search/add friends
-3. **Profile** — Avatar, contact info (phone/WhatsApp), recurring schedules with toggle, push notification preference, sign out
+1. **Home** — "I'm Available" toggle card (with duration picker + schedule indicator), filter chips by circle, available friends with call buttons, offline friends with ping buttons, ping-received modal
+2. **Circles** — List of circles with member counts, drill into circle to manage members, watch/unwatch per friend, search/add friends (incl. phone lookup + .vcf import)
+3. **Profile** — Avatar with photo upload, contact info (phone/WhatsApp/email), recurring schedules with toggle, push notification preference + test button, language switch, sign out
 
 ### State Management
 - **AuthContext** — User session, JWT token, `apiFetch` helper (auto-attaches auth header, handles 401)

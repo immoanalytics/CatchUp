@@ -6,6 +6,10 @@ const VAPID_PUBLIC_KEY = process.env.VAPID_PUBLIC_KEY || 'BMBxIYJLk_NittYqpoVAyO
 const VAPID_PRIVATE_KEY = process.env.VAPID_PRIVATE_KEY || 'QqIn51PywaFjrYo7DnBKsHUqEzoxS1xJ2Ri4hDG2-vQ';
 const VAPID_EMAIL = process.env.VAPID_EMAIL || 'mailto:admin@catchup.app';
 
+if (process.env.NODE_ENV === 'production' && (!process.env.VAPID_PUBLIC_KEY || !process.env.VAPID_PRIVATE_KEY)) {
+  console.warn('SECURITY WARNING: VAPID keys not set via env. Generate your own with `npx web-push generate-vapid-keys` and set VAPID_PUBLIC_KEY / VAPID_PRIVATE_KEY.');
+}
+
 // Configure web-push
 webpush.setVapidDetails(VAPID_EMAIL, VAPID_PUBLIC_KEY, VAPID_PRIVATE_KEY);
 

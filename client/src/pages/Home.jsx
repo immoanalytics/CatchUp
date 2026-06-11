@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { Phone, Plus, Check, Clock, Calendar, X, Hand } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useSocket } from '../context/SocketContext';
@@ -117,6 +117,14 @@ export default function Home() {
   const [, setTick] = useState(0);
   const [pendingPing, setPendingPing] = useState(null);
   const [pingingSent, setPingsSent] = useState({});
+  const [toast, setToast] = useState(null); // i18n key, translated at render
+  const toastTimer = useRef(null);
+
+  const showToast = useCallback((messageKey) => {
+    setToast(messageKey);
+    clearTimeout(toastTimer.current);
+    toastTimer.current = setTimeout(() => setToast(null), 2500);
+  }, []);
 
   const fetchData = useCallback(async () => {
     try {
@@ -155,6 +163,19 @@ export default function Home() {
 
   useEffect(() => {
     fetchData();
+  }, [fetchData]);
+
+  // Refresh data when the app regains focus (phone unlocked, tab switched back)
+  useEffect(() => {
+    function handleVisible() {
+      if (document.visibilityState === 'visible') fetchData();
+    }
+    document.addEventListener('visibilitychange', handleVisible);
+    window.addEventListener('focus', handleVisible);
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisible);
+      window.removeEventListener('focus', handleVisible);
+    };
   }, [fetchData]);
 
   // Update timer every 30 seconds
@@ -203,10 +224,12 @@ export default function Home() {
 
     function handlePingSent(data) {
       setPingsSent(prev => ({ ...prev, [data.toUserId]: new Date().toISOString() }));
+      showToast('pingSentToast');
     }
 
     function handlePingError(data) {
       console.error('Ping error:', data.error);
+      showToast('pingFailedToast');
     }
 
     socket.on('availability:changed', handleAvailabilityChanged);
@@ -226,7 +249,7 @@ export default function Home() {
       socket.off('ping:sent', handlePingSent);
       socket.off('ping:error', handlePingError);
     };
-  }, [socket]);
+  }, [socket, showToast]);
 
   function handleAvailabilityCardClick() {
     if (isAvailable) {
@@ -604,6 +627,9 @@ export default function Home() {
           </div>
         </div>
       )}
+
+      {/* Toast feedback */}
+      {toast && <div className="toast">{t(toast)}</div>}
     </div>
   );
 }
