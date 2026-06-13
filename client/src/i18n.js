@@ -124,6 +124,13 @@ const translations = {
     pingSentToast: 'Ping sent! 👋',
     pingFailedToast: "Couldn't send ping. Try again later.",
 
+    // Confirmations & misc
+    confirmDeleteCircle: 'Delete this circle? This cannot be undone.',
+    confirmDeleteSchedule: 'Delete this schedule?',
+    endAfterStart: 'End time must be after start time.',
+    saveFailed: 'Could not save changes. Please try again.',
+    emailForRecovery: 'For password recovery',
+
     // Password Reset
     forgotPassword: 'Forgot password?',
     resetYourPassword: 'Reset your password',
@@ -265,6 +272,13 @@ const translations = {
     notNow: 'Nu acum',
     pingSentToast: 'Ping trimis! 👋',
     pingFailedToast: 'Nu s-a putut trimite ping. Incearca mai tarziu.',
+
+    // Confirmations & misc
+    confirmDeleteCircle: 'Stergi acest cerc? Actiunea nu poate fi anulata.',
+    confirmDeleteSchedule: 'Stergi aceasta programare?',
+    endAfterStart: 'Ora de sfarsit trebuie sa fie dupa ora de inceput.',
+    saveFailed: 'Nu s-au putut salva modificarile. Incearca din nou.',
+    emailForRecovery: 'Pentru recuperarea parolei',
 
     // Password Reset
     forgotPassword: 'Ai uitat parola?',

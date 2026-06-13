@@ -79,6 +79,7 @@ export default function Circles() {
   }
 
   async function deleteCircle(circleId) {
+    if (!window.confirm(t('confirmDeleteCircle'))) return;
     try {
       await apiFetch(`/circles/${circleId}`, { method: 'DELETE' });
       setSelectedCircle(null);

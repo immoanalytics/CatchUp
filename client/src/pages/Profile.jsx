@@ -1,5 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
-import { Phone, MessageCircle, Bell, ChevronRight, Plus, Camera, LogOut, X } from 'lucide-react';
+import { Phone, MessageCircle, Mail, Bell, ChevronRight, Plus, Camera, LogOut, X } from 'lucide-react';
 import { useAuth } from '../context/AuthContext';
 import { useLanguage } from '../context/LanguageContext';
 
@@ -62,7 +62,7 @@ async function subscribeToPush(token) {
 const DAY_LABELS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
 
 export default function Profile() {
-  const { user, apiFetch, logout, fetchMe } = useAuth();
+  const { user, token, apiFetch, logout, fetchMe } = useAuth();
   const { t } = useLanguage();
   const [schedules, setSchedules] = useState([]);
   const [showEditProfile, setShowEditProfile] = useState(false);
@@ -70,6 +70,8 @@ export default function Profile() {
   const [editDisplayName, setEditDisplayName] = useState('');
   const [editPhone, setEditPhone] = useState('');
   const [editWhatsapp, setEditWhatsapp] = useState('');
+  const [editEmail, setEditEmail] = useState('');
+  const [saveError, setSaveError] = useState('');
   const [scheduleDays, setScheduleDays] = useState([]);
   const [scheduleStart, setScheduleStart] = useState('09:00');
   const [scheduleEnd, setScheduleEnd] = useState('09:15');
@@ -143,25 +145,36 @@ export default function Profile() {
 
   async function saveProfile(e) {
     e.preventDefault();
+    setSaveError('');
     try {
-      await apiFetch('/me', {
+      const res = await apiFetch('/me', {
         method: 'PUT',
         body: JSON.stringify({
           displayName: editDisplayName,
           phone: editPhone,
-          whatsapp: editWhatsapp
+          whatsapp: editWhatsapp,
+          email: editEmail
         })
       });
+      if (!res.ok) {
+        const data = await res.json().catch(() => ({}));
+        setSaveError(data.error || t('saveFailed'));
+        return;
+      }
       await fetchMe();
       setShowEditProfile(false);
     } catch (err) {
-      console.error(err);
+      setSaveError(err.message);
     }
   }
 
   async function addSchedule(e) {
     e.preventDefault();
     if (scheduleDays.length === 0) return;
+    if (scheduleEnd <= scheduleStart) {
+      alert(t('endAfterStart'));
+      return;
+    }
     try {
       const res = await apiFetch('/schedules', {
         method: 'POST',
@@ -196,6 +209,7 @@ export default function Profile() {
   }
 
   async function deleteSchedule(scheduleId) {
+    if (!window.confirm(t('confirmDeleteSchedule'))) return;
     try {
       await apiFetch(`/schedules/${scheduleId}`, { method: 'DELETE' });
       fetchSchedules();
@@ -230,7 +244,6 @@ export default function Profile() {
       }
 
       // Subscribe to push notifications
-      const token = localStorage.getItem('catchup-token');
       if (token) {
         subscribeToPush(token);
       }
@@ -287,6 +300,8 @@ export default function Profile() {
     setEditDisplayName(user.displayName || '');
     setEditPhone(user.phone || '');
     setEditWhatsapp(user.whatsapp || '');
+    setEditEmail(user.email || '');
+    setSaveError('');
     setShowEditProfile(true);
   }
 
@@ -359,7 +374,7 @@ export default function Profile() {
         </div>
 
         <div
-          style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', cursor: 'pointer' }}
+          style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', cursor: 'pointer', borderBottom: '1px solid var(--border-color)' }}
           onClick={openEditProfile}
         >
           <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
@@ -368,6 +383,20 @@ export default function Profile() {
           <div style={{ flex: 1 }}>
             <div style={{ fontWeight: 500 }}>{t('whatsapp')}</div>
             <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{user.whatsapp || t('notSet')}</div>
+          </div>
+          <ChevronRight size={18} className="chevron" />
+        </div>
+
+        <div
+          style={{ display: 'flex', alignItems: 'center', gap: 14, padding: '14px 16px', cursor: 'pointer' }}
+          onClick={openEditProfile}
+        >
+          <div style={{ width: 36, height: 36, borderRadius: 8, background: 'var(--bg-secondary)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
+            <Mail size={18} color="var(--text-secondary)" />
+          </div>
+          <div style={{ flex: 1 }}>
+            <div style={{ fontWeight: 500 }}>{t('email')}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-muted)' }}>{user.email || t('notSet')}</div>
           </div>
           <ChevronRight size={18} className="chevron" />
         </div>
@@ -494,6 +523,16 @@ export default function Profile() {
                   onChange={e => setEditWhatsapp(e.target.value)}
                 />
               </div>
+              <div className="form-group">
+                <label className="form-label">{t('email')}</label>
+                <input
+                  type="email"
+                  placeholder={t('emailForRecovery')}
+                  value={editEmail}
+                  onChange={e => setEditEmail(e.target.value)}
+                />
+              </div>
+              {saveError && <p className="error-text">{saveError}</p>}
               <button type="submit" className="btn btn-primary btn-block" style={{ marginTop: 8, marginBottom: 16, paddingTop: 14, paddingBottom: 14, fontSize: 16, fontWeight: 600 }}>
                 {t('saveChanges')}
               </button>
